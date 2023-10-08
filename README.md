@@ -1,13 +1,13 @@
 # Invisibl3
 
-![zigzag](https://user-images.githubusercontent.com/57314871/154353264-211a4030-8f5d-4aa8-878f-f654fa242589.png)
+  <img height=250 src="https://github.com/InvisibleExchange/frontend/blob/main/public/Invisible-full.png"> </img>
 
 
 
 ---
 
 ## **Description**:
-An app specific rollup exchange natively incorporating private transactions, achieving the high throughput and privacy of centralised exchanges while retaining the permissionless and self-custodial nature of Defi.
+An app specific ZK rollup exchange natively incorporating private transactions, achieving the high throughput and privacy of centralised exchanges while retaining the permissionless and self-custodial nature of Defi.
 You can see the general architecture on [Diagrams.net](https://app.diagrams.net/) using the Invisibl3.drawio file in the recources directory.
 
 
