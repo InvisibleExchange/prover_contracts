@@ -31,6 +31,7 @@ from rollup.output_structs import (
     PerpPositionOutput,
     OrderTabOutput,
     ZeroOutput,
+    MMRegistrationOutput,
     WithdrawalTransactionOutput,
     DepositTransactionOutput,
     write_state_updates_to_output,
@@ -110,10 +111,16 @@ func main{
     let deposit_output_ptr_start = deposit_output_ptr;
     let withdraw_output_ptr_start = withdraw_output_ptr;
 
-    // ? Note updates
-    local note_output_ptr: NoteDiffOutput* = cast(
+    // ? MM registrations
+    local registration_output_ptr: MMRegistrationOutput* = cast(
         withdraw_output_ptr + global_config.dex_state.n_withdrawals *
         WithdrawalTransactionOutput.SIZE,
+        MMRegistrationOutput*,
+    );
+    // ? Note updates
+    local note_output_ptr: NoteDiffOutput* = cast(
+        registration_output_ptr + global_config.dex_state.n_mm_registrations *
+        MMRegistrationOutput.SIZE,
         NoteDiffOutput*,
     );
     // ? Positon updates
@@ -154,6 +161,7 @@ func main{
         fee_tracker_dict=fee_tracker_dict,
         deposit_output_ptr=deposit_output_ptr,
         withdraw_output_ptr=withdraw_output_ptr,
+        registration_output_ptr=registration_output_ptr,
         funding_info=funding_info,
         global_config=global_config,
     }();
@@ -233,6 +241,7 @@ func execute_transactions{
     fee_tracker_dict: DictAccess*,
     deposit_output_ptr: DepositTransactionOutput*,
     withdraw_output_ptr: WithdrawalTransactionOutput*,
+    registration_output_ptr: MMRegistrationOutput*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }() {

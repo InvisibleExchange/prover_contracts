@@ -13,7 +13,7 @@ from helpers.signatures.signatures import verify_close_order_tab_signature
 from perpetuals.order.order_structs import CloseOrderFields
 from perpetuals.transaction.perp_transaction import get_perp_position
 
-from rollup.output_structs import ZeroOutput, NoteDiffOutput
+from rollup.output_structs import write_mm_registration_to_output, MMRegistrationOutput
 from rollup.global_config import GlobalConfig, get_dust_amount
 
 from order_tabs.order_tab import OrderTab, verify_order_tab_hash
@@ -39,6 +39,7 @@ func register_mm{
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
+    registration_output_ptr: MMRegistrationOutput*,
     note_updates: Note*,
     fee_tracker_dict: DictAccess*,
     global_config: GlobalConfig*,
@@ -111,6 +112,9 @@ func register_mm{
         // ? update the state_dict
         update_state_after_tab_register(vlp_note, order_tab, updated_order_tab);
 
+        // ? update the output
+        write_mm_registration_to_output(order_tab.tab_header.pub_key, vlp_token, max_vlp_supply, 0);
+
         return ();
     } else {
         // * Position
@@ -163,6 +167,11 @@ func register_mm{
 
         // ? update the state_dict
         update_state_after_position_register(vlp_note, position, new_position);
+
+        // ? update the output
+        write_mm_registration_to_output(
+            position.position_header.position_address, vlp_token, max_vlp_supply, 1
+        );
 
         return ();
     }

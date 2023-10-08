@@ -51,8 +51,8 @@ struct AccumulatedHashesOutput {
 
 struct MMRegistrationOutput {
     // & batched_registration_info format: | is_perp (1 bits) | vlp_token (32 bits) | max_vlp_supply (64 bits) |
-    address: felt,
     batched_registration_info: felt,
+    address: felt,
 }
 
 // Represents the struct of data written to the program output for each perpetual position Modifictaion.
@@ -443,16 +443,18 @@ func get_accumulated_withdraw_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
 
 // * SMART CONTRACT MM REGISTATION * //
 func write_mm_registration_to_output{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, mm_registration_output: MMRegistrationOutput*
+    pedersen_ptr: HashBuiltin*, range_check_ptr, registration_output_ptr: MMRegistrationOutput*
 }(address: felt, vlp_token: felt, max_vlp_supply: felt, is_perp: felt) {
     alloc_locals;
 
-    let output: MMRegistrationOutput* = mm_registration_output;
+    let output: MMRegistrationOutput* = registration_output_ptr;
     assert output.batched_registration_info = ((is_perp * 2 ** 32) + vlp_token) * 2 ** 64 +
         max_vlp_supply;
     assert output.address = address;
 
-    let mm_registration_output = mm_registration_output + MMRegistrationOutput.SIZE;
+    %{ print(ids.output.batched_registration_info, ids.is_perp, ids.vlp_token, ids.max_vlp_supply) %}
+
+    let registration_output_ptr = registration_output_ptr + MMRegistrationOutput.SIZE;
 
     return ();
 }
