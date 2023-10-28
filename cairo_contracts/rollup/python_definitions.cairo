@@ -135,7 +135,6 @@ func python_define_utils() {
                 "vlp_token": memory[header_address + POS_HEADER_VLP_TOKEN_OFFSET],
                 "max_vlp_supply": memory[header_address + POS_HEADER_MAX_VLP_SUPPLY_OFFSET],
                 "header_hash": memory[header_address + POS_HEADER_HASH_OFFSET],
-
             }
 
 
@@ -204,24 +203,39 @@ func python_define_utils() {
 
 
         def print_position(position_address):
-            header_address = position_address + POSITION_HEADER_OFFSET
+            header_address = position_address + ids.PerpPosition.position_header
             pos = {
-                "order_side": memory[position_address + PERP_POSITION_ORDER_SIDE_OFFSET],
-                "position_size": memory[position_address + PERP_POSITION_POSITION_SIZE_OFFSET],
-                "margin": memory[position_address + PERP_POSITION_MARGIN_OFFSET],
-                "entry_price": memory[position_address + PERP_POSITION_ENTRY_PRICE_OFFSET],
-                "liquidation_price": memory[position_address + PERP_POSITION_LIQUIDATION_PRICE_OFFSET],
-                "bankruptcy_price": memory[position_address + PERP_POSITION_BANKRUPTCY_PRICE_OFFSET],
-                "last_funding_idx": memory[position_address + PERP_POSITION_LAST_FUNDING_IDX_OFFSET],
-                "index": memory[position_address + PERP_POSITION_INDEX_OFFSET],
-                "hash": memory[position_address + PERP_POSITION_HASH_OFFSET],
-                "synthetic_token": memory[header_address + HEADER_SYNTHETIC_TOKEN_OFFSET],
-                "position_address": memory[header_address + HEADER_POSITION_ADDRESS_OFFSET],
-                "allow_partial_liquidations": memory[header_address + HEADER_PARTIAL_LIQUIDATIONS_OFFSET],
-                "header_hash": memory[header_address + HEADER_HASH_OFFSET],
+                "order_side": memory[position_address + ids.PerpPosition.order_side],
+                "position_size": memory[position_address + ids.PerpPosition.position_size],
+                "margin": memory[position_address + ids.PerpPosition.margin],
+                "entry_price": memory[position_address + ids.PerpPosition.entry_price],
+                "liquidation_price": memory[position_address + ids.PerpPosition.liquidation_price],
+                "bankruptcy_price": memory[position_address + ids.PerpPosition.bankruptcy_price],
+                "last_funding_idx": memory[position_address + ids.PerpPosition.last_funding_idx],
+                "vlp_supply": memory[position_address + ids.PerpPosition.vlp_supply],
+                "index": memory[position_address + ids.PerpPosition.index],
+                "hash": memory[position_address + ids.PerpPosition.hash],
+                "synthetic_token": memory[header_address + POS_HEADER_SYNTHETIC_TOKEN_OFFSET],
+                "position_address": memory[header_address + POS_HEADER_POSITION_ADDRESS_OFFSET],
+                "allow_partial_liquidations": memory[header_address + POS_HEADER_ALLOW_PARTIAL_LIQUIDATIONS_OFFSET],
+                "vlp_token": memory[header_address + POS_HEADER_VLP_TOKEN_OFFSET],
+                "max_vlp_supply": memory[header_address + POS_HEADER_MAX_VLP_SUPPLY_OFFSET],
+                "header_hash": memory[header_address + POS_HEADER_HASH_OFFSET],
             }
 
             print(pos)
+
+        def print_note(note_address):
+            note = {
+                "address": memory[note_address + ADDRESS_OFFSET],
+                "token": memory[note_address + TOKEN_OFFSET],
+                "amount": memory[note_address + AMOUNT_OFFSET],
+                "blinding_factor": memory[note_address + BLINDING_FACTOR_OFFSET],
+                "index": memory[note_address + INDEX_OFFSET],
+                "hash": memory[note_address + HASH_OFFSET],
+            }
+
+            print(note)
     %}
 
     return ();

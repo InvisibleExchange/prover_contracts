@@ -228,13 +228,11 @@ func execute_open_order{
             order.hash, open_order_fields.notes_in_len, open_order_fields.notes_in
         );
 
-        let (price: felt) = get_price(order.synthetic_token, spent_collateral, spent_synthetic);
-
         let (scaler) = pow(10, global_config.leverage_decimals);
         let (leverage: felt, _) = unsigned_div_rem(spent_collateral * scaler, init_margin);
 
         let (prev_position_hash: felt, position: PerpPosition) = add_margin_to_position(
-            order, init_margin, fee_taken, leverage, price
+            order, init_margin, spent_synthetic, fee_taken, leverage
         );
 
         // ? Add the position to the position dict and program output
@@ -289,6 +287,11 @@ func execute_modify_order{
         update_position_state(prev_position_hash, position);
     }
 
+    %{
+        if ids.position.hash == 701239037268798522145994647971868503437413362216899878719172587778432780437:
+            print_position(ids.position.address_)
+    %}
+
     return ();
 }
 
@@ -333,6 +336,10 @@ func execute_close_order{
         close_order_fields.dest_received_blinding,
         index,
     );
+    %{
+        if ids.return_collateral_note.hash == 701239037268798522145994647971868503437413362216899878719172587778432780437:
+            print_note(ids.return_collateral_note.address_)
+    %}
 
     update_rc_state_dict(return_collateral_note);
 
@@ -388,7 +395,7 @@ func add_margin_to_position{
     note_updates: Note*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
-}(order: PerpOrder, init_margin: felt, fee_taken: felt, leverage: felt, entry_price: felt) -> (
+}(order: PerpOrder, init_margin: felt, added_size: felt, fee_taken: felt, leverage: felt) -> (
     prev_hash: felt, position: PerpPosition
 ) {
     alloc_locals;
@@ -403,7 +410,7 @@ func add_margin_to_position{
     %{ ids.funding_idx = order_indexes["new_funding_idx"] %}
 
     let (position: PerpPosition) = add_margin_to_position_internal(
-        position, init_margin, entry_price, leverage, fee_taken, funding_idx
+        position, init_margin, added_size, leverage, fee_taken, funding_idx
     );
 
     return (prev_position_hash, position);

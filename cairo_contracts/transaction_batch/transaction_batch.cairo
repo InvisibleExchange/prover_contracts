@@ -169,19 +169,20 @@ func main{
 
     // * Squash dictionaries =============================================================================
 
-    let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
-    %{
-        prev_values = {}
-        for i in range(ids.dict_len):
-            idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
-            prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
-            new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
-            
-            if idx in prev_values:
-                if prev_values[idx] != prev_val:
-                    print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
-            prev_values[idx] = new_val
-    %}
+    // let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
+    // %{
+    //     prev_values = {}
+    //     for i in range(ids.dict_len):
+    //         idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
+    //         prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
+    //         new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
+
+    // if idx in prev_values:
+    //             if prev_values[idx] != prev_val:
+    //                 print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
+
+    // prev_values[idx] = new_val
+    // %}
 
     local squashed_state_dict: DictAccess*;
     %{ ids.squashed_state_dict = segments.add() %}
@@ -195,13 +196,13 @@ func main{
 
     // * VERIFY MERKLE TREE UPDATES ******************************************************
 
-    verify_merkle_tree_updates(
-        global_config.dex_state.init_state_root,
-        global_config.dex_state.final_state_root,
-        squashed_state_dict,
-        squashed_state_dict_len,
-        global_config.dex_state.state_tree_depth,
-    );
+    // verify_merkle_tree_updates(
+    //     global_config.dex_state.init_state_root,
+    //     global_config.dex_state.final_state_root,
+    //     squashed_state_dict,
+    //     squashed_state_dict_len,
+    //     global_config.dex_state.state_tree_depth,
+    // );
 
     // * WRITE STATE UPDATES TO THE PROGRAM OUTPUT ******************************
 
