@@ -107,6 +107,7 @@ func first_fill{
         swap_note_idx,
     );
 
+ 
     // ? update the note dict with the new notes
     update_state_dict{state_dict=state_dict}(notes_in_len, notes_in, refund_note, swap_note);
 

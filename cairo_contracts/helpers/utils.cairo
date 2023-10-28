@@ -214,3 +214,5 @@ func get_price{range_check_ptr, global_config: GlobalConfig*}(
 
     return (price,);
 }
+
+

@@ -36,10 +36,10 @@ func update_one{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_update
     assert state_dict_ptr.new_value = refund_note.hash;
 
     let state_dict = state_dict + DictAccess.SIZE;
+    %{ leaf_node_types[ids.note_in.index] = "note" %}
 
     // ? store to an array used for program outputs
     if (refund_note.hash != 0) {
-        %{ leaf_node_types[ids.note_in.index] = "note" %}
         %{
             note_output_idxs[ids.note_in.index] = note_outputs_len 
             note_outputs_len += 1
