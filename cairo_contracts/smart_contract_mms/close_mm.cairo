@@ -9,18 +9,18 @@ from perpetuals.transaction.perp_transaction import get_perp_position
 
 from rollup.global_config import GlobalConfig, get_dust_amount
 
-from rollup.output_structs import write_mm_remove_liquidity_to_output, OnChainMMActionOutput
+from rollup.output_structs import write_mm_close_to_output, OnChainMMActionOutput
 
 from smart_contract_mms.register_mm_helpers import update_state_after_position_register
 
 from smart_contract_mms.remove_liquidity_helpers import (
     get_return_collateral_amount,
     get_updated_position,
-    verify_position_remove_liq_sig,
-    get_fee_amount,
 )
 
-func remove_liquidity_from_mm{
+from smart_contract_mms.close_mm_helpers import verify_mm_close_sig
+
+func close_mm_position{
     poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
@@ -34,35 +34,34 @@ func remove_liquidity_from_mm{
     %{ prev_position = current_order["prev_position"] %}
     let position = get_perp_position();
 
-    local depositor: felt;
-    local initial_value: felt;
-    local vlp_amount: felt;
+    local initial_value_sum: felt;
+    local vlp_amount_sum: felt;
     %{
-        ids.depositor = int(current_order["depositor"])
-        ids.initial_value = current_order["initial_value"]
-        ids.vlp_amount = current_order["vlp_amount"]
+        ids.initial_value_sum = current_order["initial_value_sum"]
+        ids.vlp_amount_sum = current_order["vlp_amount_sum"]
     %}
 
     // ? Verify the signature
-    verify_position_remove_liq_sig(position, depositor, initial_value, vlp_amount);
+    verify_mm_close_sig(position, initial_value_sum, vlp_amount_sum);
 
     let return_collateral_amount = get_return_collateral_amount(
-        vlp_amount, position.margin, position.vlp_supply
+        vlp_amount_sum, position.margin, position.vlp_supply
     );
 
-    // let fee = get_fee_amount(return_collateral_amount, initial_value);
+    // let fee = get_fee_amount(return_collateral_amount, initial_value_sum);
 
-    let updated_position = get_updated_position(position, vlp_amount, return_collateral_amount);
+    let updated_position = get_updated_position(
+        position, position.vlp_supply, return_collateral_amount
+    );
 
     // ? update the state_dict
     update_state_after_position_register(position, updated_position);
 
     // ? update the output
-    write_mm_remove_liquidity_to_output(
+    write_mm_close_to_output(
         position.position_header.position_address,
-        depositor,
-        initial_value,
-        vlp_amount,
+        initial_value_sum,
+        vlp_amount_sum,
         return_collateral_amount,
     );
 
