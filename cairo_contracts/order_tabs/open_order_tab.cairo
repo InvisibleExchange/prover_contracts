@@ -1,29 +1,12 @@
 // %builtins output pedersen range_check
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
 from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.cairo_secp.bigint import BigInt3, bigint_to_uint256, uint256_to_bigint
-from starkware.cairo.common.cairo_secp.ec import EcPoint
-from starkware.cairo.common.merkle_multi_update import merkle_multi_update
-from starkware.cairo.common.uint256 import Uint256
-from starkware.cairo.common.math import unsigned_div_rem, assert_le
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.squash_dict import squash_dict
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
 
 from helpers.utils import Note, sum_notes
-from helpers.signatures.signatures import verify_open_order_tab_signature
+from helpers.signatures import verify_open_order_tab_signature
 
-from rollup.output_structs import ZeroOutput, NoteDiffOutput
 from rollup.global_config import GlobalConfig
 
 from order_tabs.order_tab import OrderTab, verify_order_tab_hash, hash_order_tab_inner
@@ -35,7 +18,7 @@ from order_tabs.update_dicts import (
 from order_tabs.close_order_tab import handle_order_tab_input
 
 func open_order_tab{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -157,7 +140,7 @@ func open_order_tab{
     }
 }
 
-func handle_inputs{pedersen_ptr: HashBuiltin*}(
+func handle_inputs{poseidon_ptr: PoseidonBuiltin*}(
     base_notes_in_len: felt*,
     base_notes_in: Note**,
     base_refund_note: Note*,

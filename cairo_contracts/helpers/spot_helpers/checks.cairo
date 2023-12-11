@@ -1,38 +1,11 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.math import assert_le, assert_lt, unsigned_div_rem
 from starkware.cairo.common.pow import pow
 
-from unshielded_swaps.constants import MAX_AMOUNT, MAX_NONCE, MAX_EXPIRATION_TIMESTAMP
 from rollup.global_config import price_decimals, token_decimals, GlobalConfig, get_dust_amount
 from helpers.utils import Note, check_index_uniqueness, validate_fee_taken, sum_notes
 
 from invisible_swaps.order.invisible_order import Invisibl3Order
-
-// TODO: ALL OF THIS IS COULD BE BETTER
-// func range_checks_{range_check_ptr}(
-//     invisibl3_order: Invisibl3Order, refund_note: Note, spend_amount: felt
-// ) {
-//     alloc_locals;
-
-// assert_lt(invisibl3_order.amount_spent, MAX_AMOUNT);
-//     assert_lt(invisibl3_order.amount_received, MAX_AMOUNT);
-
-// // todo new_filled_amount = prev_filled_amount + spent_amount  (only in later fills)
-//     // todo assert_le(new_filled_amount, limit_order.amount_spent)
-
-// assert_lt(invisibl3_order.order_id, MAX_NONCE);
-
-// // todo let global_expiration_timestamp = ...?
-//     // todo assert_lt(global_expiration_timestamp, limit_order.expiration_timestamp)
-//     assert_lt(invisibl3_order.expiration_timestamp, MAX_EXPIRATION_TIMESTAMP);
-
-// assert_le(0, refund_note.amount);
-//     assert_le(spend_amount, invisibl3_order.amount_spent);
-
-// return ();
-// }
 
 // --------------------------------------------------------------------------------------------------
 

@@ -1,17 +1,11 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.math import unsigned_div_rem
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 
-from helpers.utils import Note, hash_note, sum_notes, hash_notes_array
+from helpers.utils import Note, sum_notes, hash_notes_array, verify_note_hashes
 
 from rollup.global_config import GlobalConfig, verify_valid_chain_id
 
@@ -26,7 +20,9 @@ struct Deposit {
 // & Creats new notes from the public deposit information and private user input
 // & The user can input arbitrary number of notes and the function will return the
 // & corresponding notes that must sum to the amount he deposited.
-func get_deposit_notes() -> (deposit_notes_len: felt, deposit_notes: Note*) {
+func get_deposit_notes{poseidon_ptr: PoseidonBuiltin*}() -> (
+    deposit_notes_len: felt, deposit_notes: Note*
+) {
     alloc_locals;
 
     local deposit_notes_len: felt;
@@ -35,11 +31,13 @@ func get_deposit_notes() -> (deposit_notes_len: felt, deposit_notes: Note*) {
     let (__fp__, _) = get_fp_and_pc();
     handle_inputs(&deposit_notes_len, &deposit_notes);
 
+    verify_note_hashes(deposit_notes_len, deposit_notes);
+
     return (deposit_notes_len, deposit_notes);
 }
 
 func verify_deposit_notes{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     global_config: GlobalConfig*,
@@ -80,20 +78,16 @@ func verify_deposit_notes{
     return ();
 }
 
-func deposit_tx_hash{pedersen_ptr: HashBuiltin*}(
+func deposit_tx_hash{poseidon_ptr: PoseidonBuiltin*}(
     note_hashes_len: felt, note_hashes: felt*, deposit_id: felt
 ) -> (res: felt) {
     alloc_locals;
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, deposit_id);
-        let (hash_state_ptr) = hash_update(hash_state_ptr, note_hashes, note_hashes_len);
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return (res=res);
-    }
+    let (local arr: felt*) = alloc();
+    assert note_hashes[note_hashes_len] = deposit_id;
+
+    let (res) = poseidon_hash_many(note_hashes_len + 1, note_hashes);
+    return (res,);
 }
 
 func handle_inputs(notes_len: felt*, notes: Note**) {

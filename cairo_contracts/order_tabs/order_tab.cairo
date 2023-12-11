@@ -1,17 +1,7 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.hash import hash2
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
-from starkware.cairo.common.ec import EcPoint
-from starkware.cairo.common.math import unsigned_div_rem, split_felt
-
-from helpers.utils import Note, hash_note, hash_notes_array
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash, poseidon_hash_many
+from starkware.cairo.common.math import split_felt
 
 struct TabHeader {
     is_smart_contract: felt,
@@ -34,7 +24,7 @@ struct OrderTab {
     hash: felt,
 }
 
-func hash_order_tab{pedersen_ptr: HashBuiltin*, range_check_ptr}(order_tab: OrderTab) -> felt {
+func hash_order_tab{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(order_tab: OrderTab) -> felt {
     alloc_locals;
 
     let tab_hash = hash_order_tab_inner(
@@ -44,7 +34,7 @@ func hash_order_tab{pedersen_ptr: HashBuiltin*, range_check_ptr}(order_tab: Orde
     return tab_hash;
 }
 
-func verify_order_tab_hash{pedersen_ptr: HashBuiltin*, range_check_ptr}(order_tab: OrderTab) {
+func verify_order_tab_hash{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(order_tab: OrderTab) {
     let header_hash = hash_tab_header(order_tab.tab_header);
     assert header_hash = order_tab.tab_header.hash;
 
@@ -54,56 +44,44 @@ func verify_order_tab_hash{pedersen_ptr: HashBuiltin*, range_check_ptr}(order_ta
     return ();
 }
 
-func hash_order_tab_inner{pedersen_ptr: HashBuiltin*, range_check_ptr}(
+func hash_order_tab_inner{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
     tab_header: TabHeader, base_amount: felt, quote_amount: felt, vlp_supply: felt
 ) -> felt {
     alloc_locals;
 
-    let (base_commitment: felt) = hash2{hash_ptr=pedersen_ptr}(
-        base_amount, tab_header.base_blinding
-    );
+    let (base_commitment: felt) = poseidon_hash(base_amount, tab_header.base_blinding);
 
-    let (quote_commitment: felt) = hash2{hash_ptr=pedersen_ptr}(
-        quote_amount, tab_header.quote_blinding
-    );
+    let (quote_commitment: felt) = poseidon_hash(quote_amount, tab_header.quote_blinding);
 
     if (vlp_supply == 0) {
-        let hash_ptr = pedersen_ptr;
-        with hash_ptr {
-            let (hash_state_ptr) = hash_init();
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, tab_header.hash);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, base_commitment);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, quote_commitment);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, 0);
+        let (local arr: felt*) = alloc();
+        assert arr[0] = tab_header.hash;
+        assert arr[1] = base_commitment;
+        assert arr[2] = quote_commitment;
+        assert arr[3] = 0;
 
-            let (res) = hash_finalize(hash_state_ptr);
-            let pedersen_ptr = hash_ptr;
-            return res;
-        }
+        let (res) = poseidon_hash_many(4, arr);
+        return res;
     } else {
         let (_, base_low) = split_felt(tab_header.base_blinding);
         let (_, quote_low) = split_felt(tab_header.quote_blinding);
 
-        let (vlp_supply_commitment: felt) = hash2{hash_ptr=pedersen_ptr}(
-            vlp_supply, base_low + quote_low
-        );
+        let (vlp_supply_commitment: felt) = poseidon_hash(vlp_supply, base_low + quote_low);
 
-        let hash_ptr = pedersen_ptr;
-        with hash_ptr {
-            let (hash_state_ptr) = hash_init();
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, tab_header.hash);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, base_commitment);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, quote_commitment);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, vlp_supply_commitment);
+        let (local arr: felt*) = alloc();
+        assert arr[0] = tab_header.hash;
+        assert arr[1] = base_commitment;
+        assert arr[2] = quote_commitment;
+        assert arr[3] = vlp_supply_commitment;
 
-            let (res) = hash_finalize(hash_state_ptr);
-            let pedersen_ptr = hash_ptr;
-            return res;
-        }
+        let (res) = poseidon_hash_many(4, arr);
+        return res;
     }
 }
 
-func hash_tab_header{pedersen_ptr: HashBuiltin*, range_check_ptr}(tab_header: TabHeader) -> felt {
+func hash_tab_header{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
+    tab_header: TabHeader
+) -> felt {
     alloc_locals;
 
     // & header_hash = H({is_smart_contract, base_token, quote_token, vlp_token, max_vlp_supply, pub_key})
@@ -120,7 +98,7 @@ func hash_tab_header{pedersen_ptr: HashBuiltin*, range_check_ptr}(tab_header: Ta
     return header_hash;
 }
 
-func hash_tab_header_inner{pedersen_ptr: HashBuiltin*, range_check_ptr}(
+func hash_tab_header_inner{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
     is_smart_contract: felt,
     base_token: felt,
     quote_token: felt,
@@ -132,18 +110,14 @@ func hash_tab_header_inner{pedersen_ptr: HashBuiltin*, range_check_ptr}(
 
     // & header_hash = H({is_smart_contract, base_token, quote_token, vlp_token, max_vlp_supply, pub_key})
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, is_smart_contract);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, base_token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, quote_token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, vlp_token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, max_vlp_supply);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, pub_key);
+    let (local arr: felt*) = alloc();
+    assert arr[0] = is_smart_contract;
+    assert arr[1] = base_token;
+    assert arr[2] = quote_token;
+    assert arr[3] = vlp_token;
+    assert arr[4] = max_vlp_supply;
+    assert arr[5] = pub_key;
 
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return res;
-    }
+    let (res) = poseidon_hash_many(6, arr);
+    return res;
 }

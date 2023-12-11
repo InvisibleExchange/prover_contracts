@@ -1,24 +1,23 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.ec_point import EcPoint
 from starkware.cairo.common.math import assert_le
 from starkware.cairo.common.math_cmp import is_le
 
-from helpers.utils import Note, construct_new_note, take_fee
-from helpers.signatures.signatures import verify_spot_signature
+from helpers.utils import Note, construct_new_note, take_fee, verify_note_hashes, verify_note_hash
+from helpers.signatures import verify_spot_signature
 from helpers.spot_helpers.dict_updates import update_state_dict
 
 from helpers.spot_helpers.checks import not_tab_order_check
 
 from helpers.spot_helpers.partial_fill_helpers import refund_partial_fill
 
-from rollup.output_structs import ZeroOutput
 from rollup.global_config import get_dust_amount, GlobalConfig
 
-from invisible_swaps.order.invisible_order import hash_transaction, Invisibl3Order, SpotNotesInfo
+from invisible_swaps.order.invisible_order import Invisibl3Order, SpotNotesInfo
 
 func execute_non_tab_orders{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -60,7 +59,7 @@ func execute_non_tab_orders{
 // ==================================================================================
 
 func first_fill{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -80,6 +79,9 @@ func first_fill{
     let notes_in_len = spot_note_info.notes_in_len;
     let notes_in = spot_note_info.notes_in;
     let refund_note = spot_note_info.refund_note;
+
+    verify_note_hashes(notes_in_len, notes_in);
+    verify_note_hash(refund_note);
 
     not_tab_order_check(invisibl3_order, notes_in_len, notes_in, refund_note);
 
@@ -107,7 +109,6 @@ func first_fill{
         swap_note_idx,
     );
 
- 
     // ? update the note dict with the new notes
     update_state_dict{state_dict=state_dict}(notes_in_len, notes_in, refund_note, swap_note);
 
@@ -128,7 +129,7 @@ func first_fill{
 }
 
 func later_fills{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -166,6 +167,8 @@ func later_fills{
         memory[addr_ + INDEX_OFFSET] = int(index)
         memory[addr_ + HASH_OFFSET] = int(note_hash)
     %}
+
+    verify_note_hash(prev_fill_refund_note);
 
     // ? Check for valid token
     assert prev_fill_refund_note.token = invisibl3_order.token_spent;

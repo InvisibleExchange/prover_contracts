@@ -1,8 +1,7 @@
 // %builtins output pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.math import unsigned_div_rem
 
 from helpers.utils import Note
 from deposits_withdrawals.deposits.deposit_utils import (
@@ -17,7 +16,7 @@ from rollup.output_structs import DepositTransactionOutput, write_deposit_info_t
 from rollup.global_config import GlobalConfig
 
 func verify_deposit{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     deposit_output_ptr: DepositTransactionOutput*,

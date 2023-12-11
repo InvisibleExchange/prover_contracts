@@ -1,12 +1,10 @@
 // %builtins output pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.alloc import alloc
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.squash_dict import squash_dict
-from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.ec_point import EcPoint
 from starkware.cairo.common.math import unsigned_div_rem, assert_le, assert_not_equal
 from starkware.cairo.common.math_cmp import is_le
@@ -15,13 +13,17 @@ from starkware.cairo.common.pow import pow
 // from invisible_swaps.helpers.range_checks import range_checks_
 from rollup.output_structs import NoteDiffOutput, PerpPositionOutput, ZeroOutput
 from rollup.global_config import GlobalConfig
-from helpers.utils import Note, construct_new_note, sum_notes, take_fee, get_price
-
-from helpers.signatures.signatures import (
-    verify_open_order_signature,
-    verify_order_signature,
-    verify_sig,
+from helpers.utils import (
+    Note,
+    construct_new_note,
+    sum_notes,
+    take_fee,
+    get_price,
+    verify_note_hashes,
+    verify_note_hash,
 )
+
+from helpers.signatures import verify_open_order_signature, verify_order_signature, verify_sig
 
 from perpetuals.prices.prices import PriceRange
 from perpetuals.funding.funding import FundingInfo
@@ -66,7 +68,7 @@ from helpers.perp_helpers.dict_updates import (
 )
 
 func execute_perpetual_transaction{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -90,9 +92,13 @@ func execute_perpetual_transaction{
 
         let (__fp__: felt, _) = get_fp_and_pc();
         local open_order_fields: OpenOrderFields;
+        %{ open_order_field_inputs = current_order["open_order_fields"] %}
         get_open_order_fields(&open_order_fields);
 
         verify_open_order_hash(order, open_order_fields);
+
+        verify_note_hashes(open_order_fields.notes_in_len, open_order_fields.notes_in);
+        verify_note_hash(open_order_fields.refund_note);
 
         execute_open_order(
             order, other_order, open_order_fields, spent_collateral, spent_synthetic, fee_taken
@@ -142,7 +148,7 @@ func execute_perpetual_transaction{
 // * ============================================================
 
 func execute_open_order{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -200,7 +206,7 @@ func execute_open_order{
         // ? Refund excess margin if necessary
         refund_unspent_margin_first_fill(order, open_order_fields, init_margin, spent_synthetic);
 
-        // ? Update note dict
+        // ? Update state dict
         update_state_dict(
             open_order_fields.notes_in_len,
             open_order_fields.notes_in,
@@ -248,7 +254,7 @@ func execute_open_order{
 }
 
 func execute_modify_order{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -267,7 +273,7 @@ func execute_modify_order{
 
     // ? Take a fee
     validate_fee_taken(fee_taken, order, spent_collateral);
-    take_fee(global_config.collateral_token, fee_taken);  // TODO : FIGURE THIS OUT
+    take_fee(global_config.collateral_token, fee_taken);
 
     let (price: felt) = get_price(order.synthetic_token, spent_collateral, spent_synthetic);
 
@@ -287,16 +293,11 @@ func execute_modify_order{
         update_position_state(prev_position_hash, position);
     }
 
-    %{
-        if ids.position.hash == 701239037268798522145994647971868503437413362216899878719172587778432780437:
-            print_position(ids.position.address_)
-    %}
-
     return ();
 }
 
 func execute_close_order{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -320,6 +321,8 @@ func execute_close_order{
 
     assert_not_equal(order.order_side, position.order_side);
 
+    assert position.vlp_supply = 0;
+
     let (close_price: felt) = get_price(order.synthetic_token, spent_collateral, spent_synthetic);
 
     let (collateral_returned: felt) = close_position(
@@ -336,10 +339,6 @@ func execute_close_order{
         close_order_fields.dest_received_blinding,
         index,
     );
-    %{
-        if ids.return_collateral_note.hash == 701239037268798522145994647971868503437413362216899878719172587778432780437:
-            print_note(ids.return_collateral_note.address_)
-    %}
 
     update_rc_state_dict(return_collateral_note);
 
@@ -350,7 +349,7 @@ func execute_close_order{
 
 func open_new_position{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     global_config: GlobalConfig*,
@@ -390,7 +389,7 @@ func open_new_position{
 
 func add_margin_to_position{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     funding_info: FundingInfo*,
@@ -418,7 +417,7 @@ func add_margin_to_position{
 
 func increase_position_size{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     funding_info: FundingInfo*,
@@ -444,7 +443,7 @@ func increase_position_size{
 
 func reduce_position_size{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     funding_info: FundingInfo*,
@@ -480,7 +479,7 @@ func reduce_position_size{
 }
 
 func close_position{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     state_dict: DictAccess*,
     note_updates: Note*,
@@ -535,7 +534,7 @@ func close_position{
 
 func refund_unspent_margin_first_fill{
     range_check_ptr: felt,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     global_config: GlobalConfig*,
@@ -576,7 +575,7 @@ func refund_unspent_margin_first_fill{
 
 func refund_unspent_margin_later_fills{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     global_config: GlobalConfig*,
@@ -653,9 +652,9 @@ func get_perp_position() -> PerpPosition {
 
 // * ============================================================
 
-func get_open_order_fields{pedersen_ptr: HashBuiltin*}(open_order_fields: OpenOrderFields*) {
+func get_open_order_fields{poseidon_ptr: PoseidonBuiltin*}(open_order_fields: OpenOrderFields*) {
     %{
-        open_order_field_inputs = current_order["open_order_fields"]
+        ## open_order_field_inputs = current_order["open_order_fields"]
 
         memory[ids.open_order_fields.address_ + INITIAL_MARGIN_OFFSET] = int(open_order_field_inputs["initial_margin"])
         memory[ids.open_order_fields.address_ + OOF_COLLATERAL_TOKEN_OFFSET] = int(open_order_field_inputs["collateral_token"])
@@ -697,7 +696,7 @@ func get_open_order_fields{pedersen_ptr: HashBuiltin*}(open_order_fields: OpenOr
     return ();
 }
 
-func get_close_order_fields{pedersen_ptr: HashBuiltin*}(close_order_fields: CloseOrderFields*) {
+func get_close_order_fields{poseidon_ptr: PoseidonBuiltin*}(close_order_fields: CloseOrderFields*) {
     %{
         close_order_field_inputs = current_order["close_order_fields"]
 

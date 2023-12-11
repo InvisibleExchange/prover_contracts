@@ -1,18 +1,8 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.math import unsigned_div_rem, assert_le
 from starkware.cairo.common.math_cmp import is_not_zero, is_le
 from starkware.cairo.common.pow import pow
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
-from starkware.cairo.common.ec_point import EcPoint
 
-from helpers.utils import Note, get_price
 from rollup.global_config import (
     token_decimals,
     price_decimals,
@@ -24,7 +14,7 @@ from perpetuals.order.order_structs import PerpPosition, PositionHeader
 
 from perpetuals.order.order_hash import _hash_position_internal, _hash_position_header
 
-from perpetuals.prices.prices import PriceRange, validate_price_in_range
+from perpetuals.prices.prices import validate_price_in_range
 from perpetuals.funding.funding import FundingInfo, apply_funding
 
 from perpetuals.order.order_helpers import (
@@ -39,7 +29,7 @@ from perpetuals.order.order_helpers import (
 // * ====================================================================================
 
 func construct_new_position{
-    range_check_ptr, pedersen_ptr: HashBuiltin*, global_config: GlobalConfig*
+    range_check_ptr, poseidon_ptr: PoseidonBuiltin*, global_config: GlobalConfig*
 }(
     order_side: felt,
     synthetic_token: felt,
@@ -102,7 +92,7 @@ func construct_new_position{
 
 func add_margin_to_position_internal{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }(
@@ -176,7 +166,7 @@ func add_margin_to_position_internal{
 
 func increase_position_size_internal{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }(
@@ -265,7 +255,7 @@ func increase_position_size_internal{
 
 func reduce_position_size_internal{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }(
@@ -345,7 +335,7 @@ func reduce_position_size_internal{
 
 func flip_position_side_internal{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }(
@@ -423,7 +413,7 @@ func flip_position_side_internal{
 
 func close_position_partialy_internal{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }(
@@ -512,20 +502,29 @@ func close_position_internal{
 
 // * ====================================================================================
 
-func is_position_liquidatable{
-    pedersen_ptr: HashBuiltin*,
+func is_position_liquidatable{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
+    position: PerpPosition, index_price: felt
+) -> (is_liquidatable: felt) {
+    alloc_locals;
+
+    // TODO: VERIFY THE INDEX PRICE IS WITHIN PRICE RANGES
+
+    if (position.order_side == 1) {
+        let is_liquidatable = is_le(index_price + 1, position.liquidation_price);
+        return (is_liquidatable,);
+    } else {
+        let is_liquidatable = is_le(position.liquidation_price + 1, index_price);
+        return (is_liquidatable,);
+    }
+}
+
+func get_liquidatable_value{
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
-}(position: PerpPosition, market_price: felt, index_price: felt) -> (leftover_value: felt) {
+}(position: PerpPosition, market_price: felt) -> (leftover_value: felt) {
     alloc_locals;
-
-    // & if market_price is greater than the bankruptcy price, the leftover collateral goes to the insurance fund
-    if (position.order_side == 1) {
-        assert_le(index_price + 1, position.liquidation_price);
-    } else {
-        assert_le(position.liquidation_price + 1, index_price);
-    }
 
     let (min_partial_liq_size) = get_min_partial_liquidation_size(
         position.position_header.synthetic_token
@@ -568,7 +567,7 @@ func is_position_liquidatable{
 
 // Todo: Liquidate position  (use validate_price_in_range)
 func liquidate_position_partialy_internal{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
@@ -609,32 +608,6 @@ func liquidate_position_partialy_internal{
         position.position_header.allow_partial_liquidations,
         position.vlp_supply,
     );
-
-    // let (bankruptcy_price: felt) = _get_bankruptcy_price(
-    //     position.entry_price,
-    //     margin,
-    //     new_size,
-    //     position.order_side,
-    //     position.position_header.synthetic_token,
-    // );
-    // let (liquidation_price: felt) = _get_liquidation_price(
-    //     position.entry_price,
-    //     new_size,
-    //     margin,
-    //     position.order_side,
-    //     position.position_header.synthetic_token,
-    //     position.position_header.allow_partial_liquidations,
-    // );
-
-    // let (new_position_hash: felt) = _hash_position_internal(
-    //     position.position_header.hash,
-    //     position.order_side,
-    //     new_size,
-    //     position.entry_price,
-    //     liquidation_price,
-    //     funding_idx,
-    //     position.vlp_supply,
-    // );
 
     let new_position = PerpPosition(
         position.position_header,
@@ -692,7 +665,7 @@ func liquidate_position_fully_internal{
 
 // -----------------------------------------------------------------------
 
-func modify_margin{range_check_ptr, pedersen_ptr: HashBuiltin*, global_config: GlobalConfig*}(
+func modify_margin{range_check_ptr, poseidon_ptr: PoseidonBuiltin*, global_config: GlobalConfig*}(
     position: PerpPosition, margin_change: felt
 ) -> (position: PerpPosition) {
     alloc_locals;
@@ -715,33 +688,6 @@ func modify_margin{range_check_ptr, pedersen_ptr: HashBuiltin*, global_config: G
         position.vlp_supply,
     );
 
-    // let (bankruptcy_price: felt) = _get_bankruptcy_price(
-    //     position.entry_price,
-    //     margin,
-    //     position.position_size,
-    //     position.order_side,
-    //     position.position_header.synthetic_token,
-    // );
-
-    // let (liquidation_price: felt) = _get_liquidation_price(
-    //     position.entry_price,
-    //     position.position_size,
-    //     margin,
-    //     position.order_side,
-    //     position.position_header.synthetic_token,
-    //     position.position_header.allow_partial_liquidations,
-    // );
-
-    // let (new_position_hash: felt) = _hash_position_internal(
-    //     position.position_header.hash,
-    //     position.order_side,
-    //     position.position_size,
-    //     position.entry_price,
-    //     liquidation_price,
-    //     position.last_funding_idx,
-    //     position.vlp_supply,
-    // );
-
     let new_position = PerpPosition(
         position.position_header,
         position.order_side,
@@ -757,4 +703,45 @@ func modify_margin{range_check_ptr, pedersen_ptr: HashBuiltin*, global_config: G
     );
 
     return (new_position,);
+}
+
+// ---------------------------------------------------
+func get_current_leverage{range_check_ptr, global_config: GlobalConfig*}(
+    position: PerpPosition, index_price: felt
+) -> (felt, felt) {
+    alloc_locals;
+
+    if (index_price == 0) {
+        return (0, 0);
+    }
+
+    let synthetic_token = position.position_header.synthetic_token;
+
+    let pnl = _get_pnl(
+        position.order_side,
+        position.position_size,
+        position.entry_price,
+        index_price,
+        synthetic_token,
+    );
+
+    let (collateral_decimals) = token_decimals(global_config.collateral_token);
+
+    let (synthetic_decimals: felt) = token_decimals(synthetic_token);
+    let (synthetic_price_decimals: felt) = price_decimals(synthetic_token);
+
+    tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals -
+        collateral_decimals - global_config.leverage_decimals;
+    let (multiplier: felt) = pow(10, decimal_conversion);
+
+    let is_liquidatable = is_le(pnl, -position.margin);
+    if (is_liquidatable == 1) {
+        return (0, 0);
+    }
+
+    let (current_leverage: felt, _) = unsigned_div_rem(
+        index_price * position.position_size, (position.margin + pnl) * multiplier
+    );
+
+    return (1, current_leverage);
 }

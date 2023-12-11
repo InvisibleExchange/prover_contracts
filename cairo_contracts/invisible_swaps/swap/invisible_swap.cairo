@@ -1,7 +1,6 @@
 // %builtins output pedersen range_check
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.alloc import alloc
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict_access import DictAccess
 
@@ -18,13 +17,12 @@ from helpers.utils import Note
 from helpers.spot_helpers.checks import consistency_checks
 
 from order_tabs.close_order_tab import handle_order_tab_input
-from order_tabs.order_tab import OrderTab, hash_order_tab
+from order_tabs.order_tab import OrderTab
 
-from rollup.output_structs import ZeroOutput
 from rollup.global_config import GlobalConfig
 
 func execute_swap{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -96,7 +94,7 @@ func execute_swap{
 }
 
 func execute_transaction{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -138,7 +136,7 @@ func execute_transaction{
     }
 }
 
-func handle_inputs{pedersen_ptr: HashBuiltin*}(
+func handle_inputs{poseidon_ptr: PoseidonBuiltin*}(
     invisibl3_order_A: Invisibl3Order*, invisibl3_order_B: Invisibl3Order*
 ) {
     %{
@@ -178,7 +176,7 @@ func handle_inputs{pedersen_ptr: HashBuiltin*}(
     return ();
 }
 
-func handle_spot_note_info_inputs{pedersen_ptr: HashBuiltin*}(spot_note_info: SpotNotesInfo*) {
+func handle_spot_note_info_inputs{poseidon_ptr: PoseidonBuiltin*}(spot_note_info: SpotNotesInfo*) {
     %{
         input_notes = current_order["spot_note_info"]["notes_in"]
 

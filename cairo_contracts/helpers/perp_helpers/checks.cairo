@@ -1,27 +1,11 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
-from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.hash import hash2
-from starkware.cairo.common.math import unsigned_div_rem, assert_le, assert_not_equal
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.pow import pow
-from starkware.cairo.common.bitwise import bitwise_xor, bitwise_and
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
+from starkware.cairo.common.math import assert_le
 
 from helpers.utils import Note, check_index_uniqueness
 
-from unshielded_swaps.constants import MAX_AMOUNT, MAX_ORDER_ID, MAX_NONCE, MAX_EXPIRATION_TIMESTAMP
-
 from perpetuals.order.order_structs import PerpOrder, OpenOrderFields
 
-from rollup.global_config import get_dust_amount, GlobalConfig, token_decimals, verify_valid_token
+from rollup.global_config import get_dust_amount, GlobalConfig, token_decimals
 
 func consistency_checks{range_check_ptr, global_config: GlobalConfig*}(
     order_a: PerpOrder,
@@ -91,19 +75,19 @@ func checks_prev_fill_consistencies{range_check_ptr}(
 }
 
 func range_checks{range_check_ptr}(order_a: PerpOrder, order_b: PerpOrder) {
-    assert_le(order_a.collateral_amount, MAX_AMOUNT);
-    assert_le(order_a.synthetic_amount, MAX_AMOUNT);
-    assert_le(order_b.collateral_amount, MAX_AMOUNT);
-    assert_le(order_b.synthetic_amount, MAX_AMOUNT);
+    // assert_le(order_a.collateral_amount, MAX_AMOUNT);
+    // assert_le(order_a.synthetic_amount, MAX_AMOUNT);
+    // assert_le(order_b.collateral_amount, MAX_AMOUNT);
+    // assert_le(order_b.synthetic_amount, MAX_AMOUNT);
 
-    assert_le(order_a.expiration_timestamp, MAX_EXPIRATION_TIMESTAMP);
-    assert_le(order_b.expiration_timestamp, MAX_EXPIRATION_TIMESTAMP);
+    // assert_le(order_a.expiration_timestamp, MAX_EXPIRATION_TIMESTAMP);
+    // assert_le(order_b.expiration_timestamp, MAX_EXPIRATION_TIMESTAMP);
 
-    assert_le(order_a.position_effect_type, 3);
-    assert_le(order_b.position_effect_type, 3);
+    // assert_le(order_a.position_effect_type, 3);
+    // assert_le(order_b.position_effect_type, 3);
 
-    assert_le(order_a.order_side, 1);
-    assert_le(order_b.order_side, 1);
+    // assert_le(order_a.order_side, 1);
+    // assert_le(order_b.order_side, 1);
 
     return ();
 }

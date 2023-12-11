@@ -1,14 +1,9 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash
 from starkware.cairo.common.math import assert_le, unsigned_div_rem, assert_not_equal
 from starkware.cairo.common.pow import pow
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.alloc import alloc
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.ec import EcPoint
 
@@ -23,19 +18,28 @@ struct Note {
     hash: felt,
 }
 
-func hash_note{pedersen_ptr: HashBuiltin*}(note: Note) -> (hash: felt) {
-    alloc_locals;
-
+func verify_note_hash{poseidon_ptr: PoseidonBuiltin*}(note: Note) {
     let (note_hash: felt) = _hash_note_inputs(
         note.address, note.token, note.amount, note.blinding_factor
     );
 
     assert note_hash = note.hash;
 
-    return (note_hash,);
+    return ();
 }
 
-func hash_notes_array{pedersen_ptr: HashBuiltin*}(
+func verify_note_hashes{poseidon_ptr: PoseidonBuiltin*}(notes_len: felt, notes: Note*) {
+    alloc_locals;
+    if (notes_len == 0) {
+        return ();
+    }
+
+    verify_note_hash(notes[0]);
+
+    return verify_note_hashes(notes_len - 1, &notes[1]);
+}
+
+func hash_notes_array{poseidon_ptr: PoseidonBuiltin*}(
     notes_len: felt, notes: Note*, arr_len: felt, arr: felt*
 ) -> (arr_len: felt, arr: felt*) {
     alloc_locals;
@@ -43,34 +47,31 @@ func hash_notes_array{pedersen_ptr: HashBuiltin*}(
         return (arr_len, arr);
     }
 
-    let (note_hash: felt) = hash_note(notes[0]);
-
-    assert arr[arr_len] = note_hash;
+    assert arr[arr_len] = notes[0].hash;
 
     return hash_notes_array(notes_len - 1, &notes[1], arr_len + 1, arr);
 }
 
 // & This function is used to generate a hash of a new note before actually creating the note
-func _hash_note_inputs{pedersen_ptr: HashBuiltin*}(
+func _hash_note_inputs{poseidon_ptr: PoseidonBuiltin*}(
     address: EcPoint, token: felt, amount: felt, blinding_factor: felt
 ) -> (hash: felt) {
+    alloc_locals;
+
     if (amount == 0) {
         return (0,);
     }
 
-    let (commitment: felt) = hash2{hash_ptr=pedersen_ptr}(amount, blinding_factor);
+    let (commitment: felt) = poseidon_hash(amount, blinding_factor);
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, address.x);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, commitment);
+    let (local arr: felt*) = alloc();
+    assert arr[0] = address.x;
+    assert arr[1] = token;
+    assert arr[2] = commitment;
 
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return (hash=res);
-    }
+    let (res) = poseidon_hash_many(3, arr);
+
+    return (res,);
 }
 
 func sum_notes(notes_len: felt, notes: Note*, token: felt, sum: felt) -> (sum: felt) {
@@ -88,7 +89,7 @@ func sum_notes(notes_len: felt, notes: Note*, token: felt, sum: felt) -> (sum: f
     return sum_notes(notes_len - 1, &notes[1], token, sum);
 }
 
-func construct_new_note{pedersen_ptr: HashBuiltin*}(
+func construct_new_note{poseidon_ptr: PoseidonBuiltin*}(
     address_x: felt, token: felt, amount: felt, blinding_factor: felt, index: felt
 ) -> (note: Note) {
     alloc_locals;
@@ -109,7 +110,7 @@ func construct_new_note{pedersen_ptr: HashBuiltin*}(
     return (new_note,);
 }
 
-func get_zero_note{pedersen_ptr: HashBuiltin*}(index: felt) -> (note: Note) {
+func get_zero_note{poseidon_ptr: PoseidonBuiltin*}(index: felt) -> (note: Note) {
     alloc_locals;
 
     let address = EcPoint(x=0, y=0);
@@ -149,7 +150,7 @@ func _check_index_uniqueness_internal{range_check_ptr}(
     return _check_index_uniqueness_internal(notes_in_len - 1, &notes_in[1], idx);
 }
 
-func concat_arrays{output_ptr, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+func concat_arrays{output_ptr, poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
     arr1_len: felt, arr1: felt*, arr2_len: felt, arr2: felt*
 ) -> (arr_len: felt, arr: felt*) {
     alloc_locals;
@@ -206,8 +207,10 @@ func get_price{range_check_ptr, global_config: GlobalConfig*}(
 
     let (synthetic_decimals: felt) = token_decimals(synthetic_token);
     let (synthetic_price_decimals: felt) = price_decimals(synthetic_token);
+    let (collateral_decimals: felt) = token_decimals(global_config.collateral_token);
 
-    tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals - 6;
+    tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals -
+        collateral_decimals;
     let (multiplier: felt) = pow(10, decimal_conversion);
 
     let (price: felt, _) = unsigned_div_rem(collateral_amount * multiplier, synthetic_amount);
@@ -215,4 +218,20 @@ func get_price{range_check_ptr, global_config: GlobalConfig*}(
     return (price,);
 }
 
+func get_collateral_amount{range_check_ptr, global_config: GlobalConfig*}(
+    synthetic_token: felt, synthetic_amount: felt, price: felt
+) -> (collateral_amount: felt) {
+    alloc_locals;
 
+    let (synthetic_decimals: felt) = token_decimals(synthetic_token);
+    let (synthetic_price_decimals: felt) = price_decimals(synthetic_token);
+    let (collateral_decimals: felt) = token_decimals(global_config.collateral_token);
+
+    tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals -
+        collateral_decimals;
+    let (multiplier: felt) = pow(10, decimal_conversion);
+
+    let (collateral_amount: felt, _) = unsigned_div_rem(synthetic_amount * price, multiplier);
+
+    return (collateral_amount,);
+}

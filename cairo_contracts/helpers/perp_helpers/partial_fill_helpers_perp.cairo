@@ -1,5 +1,4 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
 from starkware.cairo.common.dict_access import DictAccess
@@ -7,10 +6,12 @@ from starkware.cairo.common.ec_point import EcPoint
 from starkware.cairo.common.math import unsigned_div_rem, assert_le
 from starkware.cairo.common.math_cmp import is_le
 
-from helpers.utils import Note, construct_new_note, sum_notes, hash_note
+from helpers.utils import Note, construct_new_note, sum_notes
 from perpetuals.order.order_structs import PerpOrder
 
-func refund_partial_fill{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
+func refund_partial_fill{
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
+}(
     order: PerpOrder,
     address: felt,
     blinding: felt,
@@ -44,7 +45,7 @@ func refund_partial_fill{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, no
     return ();
 }
 
-func partial_fill_updates{pedersen_ptr: HashBuiltin*, note_updates: Note*}(
+func partial_fill_updates{poseidon_ptr: PoseidonBuiltin*, note_updates: Note*}(
     order: PerpOrder, address: felt, blinding: felt, token: felt, unspent_margin: felt
 ) -> (pfr_note: Note) {
     alloc_locals;
@@ -61,9 +62,9 @@ func partial_fill_updates{pedersen_ptr: HashBuiltin*, note_updates: Note*}(
     return (pfr_note,);
 }
 
-func remove_prev_pfr_note{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
-    prev_pfr_note: Note
-) {
+func remove_prev_pfr_note{
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
+}(prev_pfr_note: Note) {
     alloc_locals;
 
     let state_dict_ptr = state_dict;

@@ -1,15 +1,8 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash, poseidon_hash_many
 from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
-from starkware.cairo.common.ec_point import EcPoint
 
-from helpers.utils import Note, hash_note, hash_notes_array
+from helpers.utils import Note, hash_notes_array
 
 from perpetuals.order.order_structs import (
     PerpOrder,
@@ -21,7 +14,7 @@ from perpetuals.order.order_structs import (
 
 // * HASH VERIFICATION FUNCTIONS * #
 
-func verify_open_order_hash{pedersen_ptr: HashBuiltin*}(
+func verify_open_order_hash{poseidon_ptr: PoseidonBuiltin*}(
     perp_order: PerpOrder, order_fields: OpenOrderFields
 ) {
     alloc_locals;
@@ -32,14 +25,14 @@ func verify_open_order_hash{pedersen_ptr: HashBuiltin*}(
 
     let (fields_hash: felt) = _hash_open_order_fields(order_fields);
 
-    let (order_hash: felt) = hash2{hash_ptr=pedersen_ptr}(order_hash, fields_hash);
+    let (order_hash: felt) = poseidon_hash(order_hash, fields_hash);
 
     assert order_hash = perp_order.hash;
 
     return ();
 }
 
-func verify_order_hash{pedersen_ptr: HashBuiltin*}(perp_order: PerpOrder) {
+func verify_order_hash{poseidon_ptr: PoseidonBuiltin*}(perp_order: PerpOrder) {
     let (order_hash: felt) = _hash_perp_order_internal(perp_order);
 
     assert order_hash = perp_order.hash;
@@ -47,7 +40,7 @@ func verify_order_hash{pedersen_ptr: HashBuiltin*}(perp_order: PerpOrder) {
     return ();
 }
 
-func verify_close_order_hash{pedersen_ptr: HashBuiltin*}(
+func verify_close_order_hash{poseidon_ptr: PoseidonBuiltin*}(
     perp_order: PerpOrder, close_order_fields: CloseOrderFields
 ) {
     alloc_locals;
@@ -58,14 +51,14 @@ func verify_close_order_hash{pedersen_ptr: HashBuiltin*}(
 
     let (fields_hash: felt) = _hash_close_order_fields(close_order_fields);
 
-    let (final_hash: felt) = hash2{hash_ptr=pedersen_ptr}(order_hash, fields_hash);
+    let (final_hash: felt) = poseidon_hash(order_hash, fields_hash);
 
     assert final_hash = perp_order.hash;
 
     return ();
 }
 
-func verify_position_hash{pedersen_ptr: HashBuiltin*}(position: PerpPosition) {
+func verify_position_hash{poseidon_ptr: PoseidonBuiltin*}(position: PerpPosition) {
     let (header_hash) = _hash_position_header(
         position.position_header.synthetic_token,
         position.position_header.allow_partial_liquidations,
@@ -92,7 +85,7 @@ func verify_position_hash{pedersen_ptr: HashBuiltin*}(position: PerpPosition) {
 }
 
 // * HASH FUNCTION HELPERS * #
-func _hash_position_internal{pedersen_ptr: HashBuiltin*}(
+func _hash_position_internal{poseidon_ptr: PoseidonBuiltin*}(
     header_hash: felt,
     order_side: felt,
     position_size: felt,
@@ -103,23 +96,21 @@ func _hash_position_internal{pedersen_ptr: HashBuiltin*}(
 ) -> (res: felt) {
     alloc_locals;
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, header_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, order_side);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, position_size);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, entry_price);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, liquidation_price);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, last_funding_idx);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, vlp_supply);
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return (res=res);
-    }
+    let (local arr: felt*) = alloc();
+    assert arr[0] = header_hash;
+    assert arr[1] = order_side;
+    assert arr[2] = position_size;
+    assert arr[3] = entry_price;
+    assert arr[4] = liquidation_price;
+    assert arr[5] = last_funding_idx;
+    assert arr[6] = vlp_supply;
+
+    let (res) = poseidon_hash_many(7, arr);
+
+    return (res=res);
 }
 
-func _hash_position_header{pedersen_ptr: HashBuiltin*}(
+func _hash_position_header{poseidon_ptr: PoseidonBuiltin*}(
     synthetic_token: felt,
     allow_partial_liquidations: felt,
     position_address: felt,
@@ -128,21 +119,21 @@ func _hash_position_header{pedersen_ptr: HashBuiltin*}(
 ) -> (res: felt) {
     alloc_locals;
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, allow_partial_liquidations);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, synthetic_token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, position_address);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, vlp_token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, max_vlp_supply);
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return (res=res);
-    }
+    // & hash = H({allow_partial_liquidations, synthetic_token, position_address,  vlp_token * 2**32 + max_vlp_supply})
+    let vlp_config = vlp_token * 2 ** 32 + max_vlp_supply;
+
+    let (local arr: felt*) = alloc();
+    assert arr[0] = allow_partial_liquidations;
+    assert arr[1] = synthetic_token;
+    assert arr[2] = position_address;
+    assert arr[3] = vlp_config;
+
+    let (res) = poseidon_hash_many(4, arr);
+
+    return (res=res);
 }
 
-func _hash_open_order_fields{pedersen_ptr: HashBuiltin*}(order_fields: OpenOrderFields) -> (
+func _hash_open_order_fields{poseidon_ptr: PoseidonBuiltin*}(order_fields: OpenOrderFields) -> (
     res: felt
 ) {
     alloc_locals;
@@ -151,57 +142,46 @@ func _hash_open_order_fields{pedersen_ptr: HashBuiltin*}(order_fields: OpenOrder
     let (hashed_notes_in_len: felt, hashed_notes_in: felt*) = hash_notes_array(
         order_fields.notes_in_len, order_fields.notes_in, 0, empty_arr
     );
-    let (refund_note_hash: felt) = hash_note(order_fields.refund_note);
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update(hash_state_ptr, hashed_notes_in, hashed_notes_in_len);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, refund_note_hash);
+    assert hashed_notes_in[hashed_notes_in_len] = order_fields.refund_note.hash;
+    assert hashed_notes_in[hashed_notes_in_len + 1] = order_fields.initial_margin;
+    assert hashed_notes_in[hashed_notes_in_len + 2] = order_fields.collateral_token;
+    assert hashed_notes_in[hashed_notes_in_len + 3] = order_fields.position_address;
+    assert hashed_notes_in[hashed_notes_in_len + 4] = order_fields.allow_partial_liquidations;
 
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, order_fields.initial_margin);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, order_fields.collateral_token);
+    let (res) = poseidon_hash_many(hashed_notes_in_len + 5, hashed_notes_in);
 
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, order_fields.position_address);
-        let (hash_state_ptr) = hash_update_single(
-            hash_state_ptr, order_fields.allow_partial_liquidations
-        );
-
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return (res=res);
-    }
+    return (res=res);
 }
 
-func _hash_close_order_fields{pedersen_ptr: HashBuiltin*}(close_order_fields: CloseOrderFields) -> (
-    res: felt
-) {
+func _hash_close_order_fields{poseidon_ptr: PoseidonBuiltin*}(
+    close_order_fields: CloseOrderFields
+) -> (res: felt) {
     alloc_locals;
 
-    let (hash: felt) = hash2{hash_ptr=pedersen_ptr}(
+    let (hash: felt) = poseidon_hash(
         close_order_fields.dest_received_address, close_order_fields.dest_received_blinding
     );
 
     return (res=hash);
 }
 
-func _hash_perp_order_internal{pedersen_ptr: HashBuiltin*}(perp_order: PerpOrder) -> (res: felt) {
+func _hash_perp_order_internal{poseidon_ptr: PoseidonBuiltin*}(perp_order: PerpOrder) -> (
+    res: felt
+) {
     alloc_locals;
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.expiration_timestamp);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.pos_addr_string);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.position_effect_type);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.order_side);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.synthetic_token);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.synthetic_amount);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.collateral_amount);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, perp_order.fee_limit);
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
+    let (local arr: felt*) = alloc();
+    assert arr[0] = perp_order.expiration_timestamp;
+    assert arr[1] = perp_order.pos_addr_string;
+    assert arr[2] = perp_order.position_effect_type;
+    assert arr[3] = perp_order.order_side;
+    assert arr[4] = perp_order.synthetic_token;
+    assert arr[5] = perp_order.synthetic_amount;
+    assert arr[6] = perp_order.collateral_amount;
+    assert arr[7] = perp_order.fee_limit;
 
-        return (res=res);
-    }
+    let (res) = poseidon_hash_many(8, arr);
+
+    return (res=res);
 }

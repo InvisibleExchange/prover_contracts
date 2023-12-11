@@ -1,22 +1,12 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.signature import verify_ecdsa_signature
-from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
-from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.math import unsigned_div_rem, assert_le
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.ec_point import EcPoint
 
-from helpers.utils import Note, hash_note, sum_notes, hash_notes_array
-from helpers.signatures.signatures import sum_pub_keys
+from helpers.utils import Note, sum_notes, hash_notes_array, verify_note_hashes, verify_note_hash
+from helpers.signatures import sum_pub_keys
 
 // & This is the public output sent on-chain
 struct Withdrawal {
@@ -29,7 +19,7 @@ struct Withdrawal {
 // & Gets the notes that the user wants to spend as the input
 // & The notes should sum to at least the amount the user wants to withdraw
 // & The rest is refunded back to him
-func get_withdraw_and_refund_notes() -> (
+func get_withdraw_and_refund_notes{poseidon_ptr: PoseidonBuiltin*}() -> (
     withdraw_notes_len: felt, withdraw_notes: Note*, refund_note: Note
 ) {
     alloc_locals;
@@ -41,11 +31,14 @@ func get_withdraw_and_refund_notes() -> (
     let (__fp__, _) = get_fp_and_pc();
     handle_inputs(&withdraw_notes_len, &withdraw_notes, &refund_note);
 
+    verify_note_hashes(withdraw_notes_len, withdraw_notes);
+    verify_note_hash(refund_note);
+
     return (withdraw_notes_len, withdraw_notes, refund_note);
 }
 
 func verify_withdraw_notes{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*
 }(withdraw_notes_len: felt, withdraw_notes: Note*, refund_note: Note, withdrawal: Withdrawal) {
     alloc_locals;
 
@@ -58,10 +51,9 @@ func verify_withdraw_notes{
     let (note_hashes_len: felt, note_hashes: felt*) = hash_notes_array(
         withdraw_notes_len, withdraw_notes, 0, empty_arr
     );
-    let (refund_hash: felt) = hash_note(refund_note);
 
     let (withdraw_hash: felt) = withdraw_tx_hash(
-        note_hashes_len, note_hashes, refund_hash, withdrawal
+        note_hashes_len, note_hashes, refund_note.hash, withdrawal
     );
 
     local signature_r: felt;
@@ -84,20 +76,28 @@ func verify_withdraw_notes{
     return ();
 }
 
-func withdraw_tx_hash{pedersen_ptr: HashBuiltin*}(
+func withdraw_tx_hash{poseidon_ptr: PoseidonBuiltin*}(
     note_hashes_len: felt, note_hashes: felt*, refund_hash: felt, withdrawal: Withdrawal
 ) -> (res: felt) {
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update(hash_state_ptr, note_hashes, note_hashes_len);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, refund_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, withdrawal.withdrawal_address);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, withdrawal.withdrawal_chain);
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return (res=res);
-    }
+    assert note_hashes[note_hashes_len] = refund_hash;
+    assert note_hashes[note_hashes_len + 1] = withdrawal.withdrawal_address;
+    assert note_hashes[note_hashes_len + 2] = withdrawal.withdrawal_chain;
+
+    let (res) = poseidon_hash_many(note_hashes_len + 3, note_hashes);
+
+    return (res,);
+
+    // let hash_ptr = pedersen_ptr;
+    // with hash_ptr {
+    //     let (hash_state_ptr) = hash_init();
+    //     let (hash_state_ptr) = hash_update(hash_state_ptr, note_hashes, note_hashes_len);
+    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, refund_hash);
+    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, withdrawal.withdrawal_address);
+    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, withdrawal.withdrawal_chain);
+    //     let (res) = hash_finalize(hash_state_ptr);
+    //     let pedersen_ptr = hash_ptr;
+    //     return (res=res);
+    // }
 }
 
 func handle_inputs(notes_len: felt*, notes: Note**, refund_note: Note*) {

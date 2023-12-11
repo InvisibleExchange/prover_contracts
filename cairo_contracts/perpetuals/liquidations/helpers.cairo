@@ -1,29 +1,14 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.hash import hash2
-from starkware.cairo.common.math import unsigned_div_rem, assert_le, assert_not_equal
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.pow import pow
-from starkware.cairo.common.bitwise import bitwise_xor, bitwise_and
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.math import assert_le
 
 from helpers.utils import Note, check_index_uniqueness, sum_notes, get_price
 from helpers.spot_helpers.dict_updates import _update_multi_inner
 
-from unshielded_swaps.constants import MAX_AMOUNT, MAX_ORDER_ID, MAX_NONCE, MAX_EXPIRATION_TIMESTAMP
-
 from perpetuals.order.order_structs import OpenOrderFields, PerpPosition
 from perpetuals.liquidations.liquidation_order import LiquidationOrder
 
-from rollup.global_config import get_dust_amount, GlobalConfig, token_decimals
+from rollup.global_config import GlobalConfig
 
 func liquidation_consistency_checks{range_check_ptr, global_config: GlobalConfig*}(
     liquidation_order: LiquidationOrder,
@@ -75,7 +60,7 @@ func liquidation_consistency_checks{range_check_ptr, global_config: GlobalConfig
 }
 
 func liquidation_note_state_updates{
-    pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
 }(open_order_fields: OpenOrderFields, new_position: PerpPosition) {
     alloc_locals;
 
@@ -92,8 +77,6 @@ func liquidation_note_state_updates{
 
     // ? Remove the notes from the state
     _update_multi_inner(open_order_fields.notes_in_len, open_order_fields.notes_in);
-
-    let pedersen_tmp = pedersen_ptr;
 
     let refund_note = open_order_fields.refund_note;
     if (refund_note.hash != 0) {
@@ -114,11 +97,8 @@ func liquidation_note_state_updates{
             note_outputs_len += 1
         %}
 
-        
-        let pedersen_ptr = pedersen_tmp;
         return ();
     } else {
-        let pedersen_ptr = pedersen_tmp;
         return ();
     }
 }

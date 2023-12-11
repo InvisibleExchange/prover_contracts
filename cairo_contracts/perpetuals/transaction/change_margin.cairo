@@ -1,15 +1,10 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin, BitwiseBuiltin
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.math import assert_le, abs_value, unsigned_div_rem
 from starkware.cairo.common.math_cmp import is_le
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 
 from helpers.utils import Note, sum_notes, construct_new_note, hash_notes_array
 from perpetuals.order.order_structs import (
@@ -21,12 +16,12 @@ from perpetuals.order.order_structs import (
 from perpetuals.order.order_hash import _hash_close_order_fields
 from perpetuals.order.perp_position import modify_margin
 from perpetuals.transaction.perp_transaction import get_perp_position, get_init_margin
-from helpers.signatures.signatures import verify_margin_change_signature
+from helpers.signatures import verify_margin_change_signature
 
 from rollup.global_config import GlobalConfig
 
 func execute_margin_change{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     state_dict: DictAccess*,
     ecdsa_ptr: SignatureBuiltin*,
@@ -91,7 +86,7 @@ func execute_margin_change{
 }
 
 func update_state_after_increase{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
 }(
     notes_in_len: felt,
     notes_in: Note*,
@@ -135,7 +130,7 @@ func update_state_after_increase{
 }
 
 func update_state_after_increase_inner{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
 }(notes_in_len: felt, notes_in: Note*) {
     if (notes_in_len == 0) {
         return ();
@@ -156,7 +151,7 @@ func update_state_after_increase_inner{
 }
 
 func update_state_after_decrease{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
 }(return_collateral_note: Note, position: PerpPosition, prev_position_hash: felt) {
     let state_dict_ptr = state_dict;
     assert state_dict_ptr.key = return_collateral_note.index;
@@ -192,7 +187,7 @@ func update_state_after_decrease{
 // Hash the margin change message
 
 func hash_margin_change_message{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, state_dict: DictAccess*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, state_dict: DictAccess*
 }(
     margin_change: felt,
     notes_in_len: felt,
@@ -211,34 +206,27 @@ func hash_margin_change_message{
             notes_in_len, notes_in, 0, empty_arr
         );
 
-        let hash_ptr = pedersen_ptr;
-        with hash_ptr {
-            let (hash_state_ptr) = hash_init();
-            let (hash_state_ptr) = hash_update(hash_state_ptr, hashes, hashes_len);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, refund_note.hash);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, position.hash);
-            let (res) = hash_finalize(hash_state_ptr);
-            let pedersen_ptr = hash_ptr;
-            return (res=res);
-        }
+        assert hashes[hashes_len] = refund_note.hash;
+        assert hashes[hashes_len + 1] = position.hash;
+
+        let (res) = poseidon_hash_many(hashes_len + 2, hashes);
+
+        return (res=res);
     } else {
         let (fields_hash: felt) = _hash_close_order_fields(close_order_fields);
 
-        let hash_ptr = pedersen_ptr;
+        let (local arr: felt*) = alloc();
+        assert arr[0] = margin_change;
+        assert arr[1] = fields_hash;
+        assert arr[2] = position.hash;
 
-        with hash_ptr {
-            let (hash_state_ptr) = hash_init();
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, margin_change);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, fields_hash);
-            let (hash_state_ptr) = hash_update_single(hash_state_ptr, position.hash);
-            let (res) = hash_finalize(hash_state_ptr);
-            let pedersen_ptr = hash_ptr;
-            return (res=res);
-        }
+        let (res) = poseidon_hash_many(3, arr);
+
+        return (res=res);
     }
 }
 
-func handle_inputs{pedersen_ptr: HashBuiltin*}(
+func handle_inputs{poseidon_ptr: PoseidonBuiltin*}(
     margin_change: felt*,
     notes_in_len: felt*,
     notes_in: Note**,

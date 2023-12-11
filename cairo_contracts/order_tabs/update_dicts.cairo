@@ -1,13 +1,13 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.dict_access import DictAccess
 
 from helpers.utils import Note
 from helpers.spot_helpers.dict_updates import _update_multi_inner
 
-from order_tabs.order_tab import OrderTab, TabHeader
+from order_tabs.order_tab import OrderTab
 
 func open_tab_state_note_updates{
-    pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
 }(
     base_notes_in_len: felt,
     base_notes_in: Note*,
@@ -22,34 +22,28 @@ func open_tab_state_note_updates{
     _update_multi_inner(base_notes_in_len, base_notes_in);
     _update_multi_inner(quote_notes_in_len, quote_notes_in);
 
-    let pedersen_tmp = pedersen_ptr;
-
     // ? add the refund notes
     if (base_refund_note.hash != 0) {
         add_refund_note(base_notes_in[0].index, base_refund_note);
 
         if (quote_refund_note.hash != 0) {
             add_refund_note(quote_notes_in[0].index, quote_refund_note);
-
-            let pedersen_ptr = pedersen_tmp;
+            return ();
+        } else {
             return ();
         }
-
-        let pedersen_ptr = pedersen_tmp;
-        return ();
     } else {
         if (quote_refund_note.hash != 0) {
             add_refund_note(quote_notes_in[0].index, quote_refund_note);
 
-            let pedersen_ptr = pedersen_tmp;
+            return ();
+        } else {
             return ();
         }
-        let pedersen_ptr = pedersen_tmp;
-        return ();
     }
 }
 
-func add_refund_note{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
+func add_refund_note{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
     index: felt, refund_note: Note
 ) {
     alloc_locals;
@@ -76,7 +70,7 @@ func add_refund_note{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_u
 }
 
 func close_tab_note_state_updates{
-    pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
 }(base_return_note: Note, quote_return_note: Note) {
     // * Update the note dict
     let state_dict_ptr = state_dict;
@@ -117,7 +111,7 @@ func close_tab_note_state_updates{
 }
 
 // ? ORDER TAB UPDATES ===================================================
-func add_new_tab_to_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
+func add_new_tab_to_state{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*}(
     order_tab: OrderTab
 ) {
     let state_dict_ptr = state_dict;
@@ -128,12 +122,12 @@ func add_new_tab_to_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
     let state_dict = state_dict + DictAccess.SIZE;
 
     %{ leaf_node_types[ids.order_tab.tab_idx] = "order_tab" %}
-    %{ store_output_order_tab(ids.order_tab.tab_header.address_, ids.order_tab.tab_idx, ids.order_tab.base_amount, ids.order_tab.quote_amount,ids.order_tab.vlp_supply, ids.order_tab.hash ) %}
+    %{ store_output_order_tab(ids.order_tab.address_, ids.order_tab.tab_idx, ids.order_tab.base_amount, ids.order_tab.quote_amount, ids.order_tab.vlp_supply, ids.order_tab.hash ) %}
 
     return ();
 }
 
-func remove_tab_from_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
+func remove_tab_from_state{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*}(
     order_tab: OrderTab
 ) {
     let state_dict_ptr = state_dict;
@@ -148,7 +142,7 @@ func remove_tab_from_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
     return ();
 }
 
-func update_tab_in_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
+func update_tab_in_state{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*}(
     prev_order_tab: OrderTab, new_base_amount: felt, new_quote_amount: felt, updated_tab_hash: felt
 ) {
     let state_dict_ptr = state_dict;
@@ -159,7 +153,7 @@ func update_tab_in_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
     let state_dict = state_dict + DictAccess.SIZE;
 
     %{ leaf_node_types[ids.prev_order_tab.tab_idx] = "order_tab" %}
-    %{ store_output_order_tab(ids.prev_order_tab.tab_header.address_, ids.prev_order_tab.tab_idx, ids.new_base_amount, ids.new_quote_amount, ids.prev_order_tab.vlp_supply, ids.updated_tab_hash) %}
+    %{ store_output_order_tab(ids.prev_order_tab.address_, ids.prev_order_tab.tab_idx, ids.new_base_amount, ids.new_quote_amount, ids.prev_order_tab.vlp_supply, ids.updated_tab_hash) %}
 
     return ();
 }

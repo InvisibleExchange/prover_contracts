@@ -1,13 +1,12 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, BitwiseBuiltin
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, BitwiseBuiltin
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math import unsigned_div_rem, split_felt
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.bitwise import bitwise_xor, bitwise_and
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.pow import pow
 
-from helpers.utils import Note, hash_note
+from helpers.utils import Note
 from deposits_withdrawals.deposits.deposit_utils import Deposit
 from deposits_withdrawals.withdrawals.withdraw_utils import Withdrawal
 
@@ -15,8 +14,9 @@ from perpetuals.order.order_structs import PerpPosition
 from perpetuals.order.order_hash import verify_position_hash
 from order_tabs.order_tab import OrderTab, TabHeader, verify_order_tab_hash
 
-from unshielded_swaps.constants import BIT_64_AMOUNT
 from rollup.global_config import GlobalConfig
+
+const BIT_64_AMOUNT = 2 ** 64 - 1;
 
 // Represents the struct of data written to the program output for each Note Modifictaion.
 struct NoteDiffOutput {
@@ -49,10 +49,18 @@ struct AccumulatedHashesOutput {
 
 // *********************************************************************************************************
 
-struct MMRegistrationOutput {
-    // & batched_registration_info format: | is_perp (1 bits) | vlp_token (32 bits) | max_vlp_supply (64 bits) |
-    batched_registration_info: felt,
-    address: felt,
+const REGISTRATION = 0;
+const ADD_LIQUIDITY = 1;
+const REMOVE_LIQUIDITY = 2;
+const CLOSE_MM = 3;
+struct OnChainMMActionOutput {
+    // & batched_registration_info format: | vlp_token (32 bits) | max_vlp_supply (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
+    // & batched_add_liq_info format:  usdcAmount (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
+    // & batched_remove_liq_info format:  | initialValue (64 bits) | vlpAmount (64 bits) | returnAmount (64 bits) | action_type (8 bits) |
+    // & batched_close_mm_info format:  | initialValueSum (64 bits) | vlpAmountSum (64 bits) | returnAmount (64 bits) | action_type (8 bits) |
+    mm_position_address: felt,
+    depositor: felt,
+    batched_action_info: felt,
 }
 
 // Represents the struct of data written to the program output for each perpetual position Modifictaion.
@@ -87,7 +95,7 @@ struct ZeroOutput {
 // * STATE * //
 
 func write_state_updates_to_output{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     bitwise_ptr: BitwiseBuiltin*,
     note_output_ptr: NoteDiffOutput*,
@@ -111,7 +119,7 @@ func write_state_updates_to_output{
 }
 
 func _write_state_updates_to_output_inner{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     bitwise_ptr: BitwiseBuiltin*,
     note_output_ptr: NoteDiffOutput*,
@@ -198,7 +206,7 @@ func _write_state_updates_to_output_inner{
 
 // ?: Loop backwards through the notes array and write the last update for each index to the program output
 func write_note_update{
-    pedersen_ptr: HashBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: NoteDiffOutput*
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: NoteDiffOutput*
 }(note_outputs: Note*, idx: felt, hash: felt) {
     alloc_locals;
 
@@ -214,7 +222,7 @@ func write_note_update{
 }
 
 func write_position_update{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     bitwise_ptr: BitwiseBuiltin*,
     position_output_ptr: PerpPositionOutput*,
 }(idx: felt, hash: felt) {
@@ -232,7 +240,7 @@ func write_position_update{
 }
 
 func write_order_tab_update{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     bitwise_ptr: BitwiseBuiltin*,
     tab_output_ptr: OrderTabOutput*,
@@ -256,7 +264,7 @@ func write_order_tab_update{
 // * DEPOSITS/WITHDRAWALS * //
 
 func write_deposit_info_to_output{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, deposit_output_ptr: DepositTransactionOutput*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, deposit_output_ptr: DepositTransactionOutput*
 }(deposit: Deposit) {
     alloc_locals;
 
@@ -275,7 +283,9 @@ func write_deposit_info_to_output{
 }
 
 func write_withdrawal_info_to_output{
-    range_check_ptr, pedersen_ptr: HashBuiltin*, withdraw_output_ptr: WithdrawalTransactionOutput*
+    range_check_ptr,
+    poseidon_ptr: PoseidonBuiltin*,
+    withdraw_output_ptr: WithdrawalTransactionOutput*,
 }(withdrawal: Withdrawal) {
     alloc_locals;
 
@@ -294,7 +304,7 @@ func write_withdrawal_info_to_output{
 
 func write_accumulated_hashes_to_output{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     accumulated_hashes: AccumulatedHashesOutput*,
     global_config: GlobalConfig*,
 }(
@@ -315,7 +325,7 @@ func write_accumulated_hashes_to_output{
 
 func output_accumulated_hashes{
     range_check_ptr,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     accumulated_hashes: AccumulatedHashesOutput*,
     global_config: GlobalConfig*,
 }(
@@ -359,7 +369,7 @@ func output_accumulated_hashes{
     );
 }
 
-func get_accumulated_deposit_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
+func get_accumulated_deposit_hash{range_check_ptr, poseidon_ptr: PoseidonBuiltin*}(
     chain_id: felt,
     deposit_outputs_len: felt,
     deposit_outputs: DepositTransactionOutput*,
@@ -384,13 +394,11 @@ func get_accumulated_deposit_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
         );
     }
 
-    let deposit_hash: felt = hash2{hash_ptr=pedersen_ptr}(
+    let deposit_hash: felt = poseidon_hash(
         deposit_output.batched_deposit_info, deposit_output.stark_key
     );
 
-    let accumulated_deposit_hash: felt = hash2{hash_ptr=pedersen_ptr}(
-        accumulated_deposit_hash, deposit_hash
-    );
+    let accumulated_deposit_hash: felt = poseidon_hash(accumulated_deposit_hash, deposit_hash);
 
     return get_accumulated_deposit_hash(
         chain_id,
@@ -400,7 +408,7 @@ func get_accumulated_deposit_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
     );
 }
 
-func get_accumulated_withdraw_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
+func get_accumulated_withdraw_hash{range_check_ptr, poseidon_ptr: PoseidonBuiltin*}(
     chain_id: felt,
     withdraw_outputs_len: felt,
     withdraw_outputs: WithdrawalTransactionOutput*,
@@ -425,13 +433,11 @@ func get_accumulated_withdraw_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
         );
     }
 
-    let withdraw_hash: felt = hash2{hash_ptr=pedersen_ptr}(
+    let withdraw_hash: felt = poseidon_hash(
         withdraw_output.batched_withdraw_info, withdraw_output.withdraw_address
     );
 
-    let accumulated_withdraw_hash: felt = hash2{hash_ptr=pedersen_ptr}(
-        accumulated_withdraw_hash, withdraw_hash
-    );
+    let accumulated_withdraw_hash: felt = poseidon_hash(accumulated_withdraw_hash, withdraw_hash);
 
     return get_accumulated_withdraw_hash(
         chain_id,
@@ -443,31 +449,99 @@ func get_accumulated_withdraw_hash{range_check_ptr, pedersen_ptr: HashBuiltin*}(
 
 // * SMART CONTRACT MM REGISTATION * //
 func write_mm_registration_to_output{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, registration_output_ptr: MMRegistrationOutput*
-}(address: felt, vlp_token: felt, max_vlp_supply: felt, is_perp: felt) {
+    poseidon_ptr: PoseidonBuiltin*,
+    range_check_ptr,
+    onchain_mm_action_output_ptr: OnChainMMActionOutput*,
+}(address: felt, vlp_token: felt, max_vlp_supply: felt, vlp_amount: felt) {
     alloc_locals;
 
-    let output: MMRegistrationOutput* = registration_output_ptr;
-    assert output.batched_registration_info = ((is_perp * 2 ** 32) + vlp_token) * 2 ** 64 +
-        max_vlp_supply;
-    assert output.address = address;
+    // & batched_registration_info format: | vlp_token (32 bits) | max_vlp_supply (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
+    let output: OnChainMMActionOutput* = onchain_mm_action_output_ptr;
+    assert output.mm_position_address = address;
+    assert output.depositor = 0;
+    assert output.batched_action_info = (
+        (vlp_token * 2 ** 64 + max_vlp_supply) * 2 ** 64 + vlp_amount
+    ) * 2 ** 8 + REGISTRATION;
 
-    %{ print(ids.output.batched_registration_info, ids.is_perp, ids.vlp_token, ids.max_vlp_supply) %}
-
-    let registration_output_ptr = registration_output_ptr + MMRegistrationOutput.SIZE;
+    let onchain_mm_action_output_ptr = onchain_mm_action_output_ptr + OnChainMMActionOutput.SIZE;
 
     return ();
 }
 
-// * ================================================================================================================================================================
-// * INIT OUTPUT STRUCTS * //
+// * ADD LIQUDITIY * //
+func write_mm_add_liquidity_to_output{
+    poseidon_ptr: PoseidonBuiltin*,
+    range_check_ptr,
+    onchain_mm_action_output_ptr: OnChainMMActionOutput*,
+}(position_address: felt, depositor: felt, usdc_amount: felt, vlp_amount: felt) {
+    alloc_locals;
+
+    // & batched_add_liq_info format:  usdcAmount (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
+    let output: OnChainMMActionOutput* = onchain_mm_action_output_ptr;
+    assert output.mm_position_address = position_address;
+    assert output.depositor = depositor;
+    assert output.batched_action_info = (usdc_amount * 2 ** 64 + vlp_amount) * 2 ** 8 +
+        ADD_LIQUIDITY;
+
+    let onchain_mm_action_output_ptr = onchain_mm_action_output_ptr + OnChainMMActionOutput.SIZE;
+
+    return ();
+}
+
+// * REMOVE LIQUDITIY * //
+func write_mm_remove_liquidity_to_output{
+    poseidon_ptr: PoseidonBuiltin*,
+    range_check_ptr,
+    onchain_mm_action_output_ptr: OnChainMMActionOutput*,
+}(
+    position_address: felt,
+    depositor: felt,
+    intial_value: felt,
+    vlp_amount: felt,
+    return_amount: felt,
+) {
+    alloc_locals;
+
+    // & batched_remove_liq_info format:  | initialValue (64 bits) | vlpAmount (64 bits) | returnAmount (64 bits) | action_type (8 bits) |
+    let output: OnChainMMActionOutput* = onchain_mm_action_output_ptr;
+    assert output.mm_position_address = position_address;
+    assert output.depositor = depositor;
+    assert output.batched_action_info = (
+        (intial_value * 2 ** 64 + vlp_amount) * 2 ** 64 + return_amount
+    ) * 2 ** 8 + REMOVE_LIQUIDITY;
+
+    let onchain_mm_action_output_ptr = onchain_mm_action_output_ptr + OnChainMMActionOutput.SIZE;
+
+    return ();
+}
+
+// * CLOSE MM * //
+func write_mm_close_to_output{
+    poseidon_ptr: PoseidonBuiltin*,
+    range_check_ptr,
+    onchain_mm_action_output_ptr: OnChainMMActionOutput*,
+}(position_address: felt, intial_value_sum: felt, vlp_amount_sum: felt, return_amount: felt) {
+    alloc_locals;
+
+    // & batched_close_mm_info format:  | initialValueSum (64 bits) | vlpAmountSum (64 bits) | returnAmount (64 bits) | action_type (8 bits) |
+    let output: OnChainMMActionOutput* = onchain_mm_action_output_ptr;
+    assert output.mm_position_address = position_address;
+    assert output.depositor = 0;
+    assert output.batched_action_info = (
+        (intial_value_sum * 2 ** 64 + vlp_amount_sum) * 2 ** 64 + return_amount
+    ) * 2 ** 8 + CLOSE_MM;
+
+    let onchain_mm_action_output_ptr = onchain_mm_action_output_ptr + OnChainMMActionOutput.SIZE;
+
+    return ();
+}
 
 // * ================================================================================================================================================================
 // * HELPERS * //
 
 // * Notes * //
 func _write_new_note_to_output{
-    pedersen_ptr: HashBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: NoteDiffOutput*
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: NoteDiffOutput*
 }(note: Note, index: felt) {
     alloc_locals;
 
@@ -478,7 +552,7 @@ func _write_new_note_to_output{
 
     // & batched_note_info format: | token (32 bits) | hidden amount (64 bits) | idx (64 bits) |
     assert output.batched_note_info = ((note.token * 2 ** 64) + hidden_amount) * 2 ** 64 + index;
-    let (comm: felt) = hash2{hash_ptr=pedersen_ptr}(note.amount, note.blinding_factor);
+    let (comm: felt) = poseidon_hash(note.amount, note.blinding_factor);
     assert output.commitment = comm;
     assert output.address = note.address.x;
 
@@ -489,7 +563,7 @@ func _write_new_note_to_output{
 
 // * Positions * //
 func _write_position_info_to_output{
-    position_output_ptr: PerpPositionOutput*, pedersen_ptr: HashBuiltin*
+    position_output_ptr: PerpPositionOutput*, poseidon_ptr: PoseidonBuiltin*
 }(position: PerpPosition, index: felt) {
     alloc_locals;
 
@@ -527,7 +601,7 @@ func _write_position_info_to_output{
 func _write_order_tab_info_to_output{
     bitwise_ptr: BitwiseBuiltin*,
     tab_output_ptr: OrderTabOutput*,
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
 }(order_tab: OrderTab, index: felt) {
     alloc_locals;
@@ -560,12 +634,8 @@ func _write_order_tab_info_to_output{
     ) * 2 ** 32 + tab_header.vlp_token;
     assert output.batched_tab_info_slot2 = batched_info2;
 
-    let (base_commitment: felt) = hash2{hash_ptr=pedersen_ptr}(
-        order_tab.base_amount, tab_header.base_blinding
-    );
-    let (quote_commitment: felt) = hash2{hash_ptr=pedersen_ptr}(
-        order_tab.quote_amount, tab_header.quote_blinding
-    );
+    let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);
+    let (quote_commitment: felt) = poseidon_hash(order_tab.quote_amount, tab_header.quote_blinding);
     let vlp_supply_commitment: felt = _get_vlp_supply_commitment(
         order_tab.vlp_supply, blinding_sum
     );
@@ -580,7 +650,7 @@ func _write_order_tab_info_to_output{
     return ();
 }
 
-func _get_vlp_supply_commitment{pedersen_ptr: HashBuiltin*, range_check_ptr}(
+func _get_vlp_supply_commitment{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
     vlp_supply: felt, blinding_sum: felt
 ) -> felt {
     alloc_locals;
@@ -588,14 +658,14 @@ func _get_vlp_supply_commitment{pedersen_ptr: HashBuiltin*, range_check_ptr}(
     if (vlp_supply == 0) {
         return 0;
     } else {
-        let (vlp_supply_commitment: felt) = hash2{hash_ptr=pedersen_ptr}(vlp_supply, blinding_sum);
+        let (vlp_supply_commitment: felt) = poseidon_hash(vlp_supply, blinding_sum);
 
         return vlp_supply_commitment;
     }
 }
 
 // * Empty Outputs * //
-func _write_zero_indexes_to_output{pedersen_ptr: HashBuiltin*, empty_output_ptr: ZeroOutput*}(
+func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_ptr: ZeroOutput*}(
     zero_idxs_len: felt, zero_idxs: felt*
 ) {
     alloc_locals;

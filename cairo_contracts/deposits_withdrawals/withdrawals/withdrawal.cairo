@@ -1,20 +1,12 @@
 // %builtins output pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.merkle_multi_update import merkle_multi_update
 from starkware.cairo.common.math import unsigned_div_rem, assert_le
 from starkware.cairo.common.squash_dict import squash_dict
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
 
 from helpers.utils import Note
 from deposits_withdrawals.withdrawals.withdraw_utils import (
@@ -32,7 +24,7 @@ from rollup.output_structs import (
 )
 
 func verify_withdrawal{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     withdraw_output_ptr: WithdrawalTransactionOutput*,

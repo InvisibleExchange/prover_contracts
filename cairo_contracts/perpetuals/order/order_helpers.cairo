@@ -1,17 +1,8 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
-from starkware.cairo.common.math import unsigned_div_rem, signed_div_rem, assert_le
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
+from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.math_cmp import is_nn, is_le
 from starkware.cairo.common.pow import pow
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
 
-from helpers.utils import Note, hash_note, hash_notes_array, get_price
 from rollup.global_config import (
     token_decimals,
     price_decimals,
@@ -216,7 +207,7 @@ func _get_leftover_value{range_check_ptr, global_config: GlobalConfig*}(
 }
 
 func update_position_info{
-    range_check_ptr, global_config: GlobalConfig*, pedersen_ptr: HashBuiltin*
+    range_check_ptr, global_config: GlobalConfig*, poseidon_ptr: PoseidonBuiltin*
 }(
     header_hash: felt,
     order_side: felt,

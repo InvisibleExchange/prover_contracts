@@ -1,14 +1,12 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin, BitwiseBuiltin
 from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.math import assert_le
-from starkware.cairo.common.math_cmp import is_le
 from starkware.cairo.common.registers import get_fp_and_pc
 
 from helpers.utils import Note, sum_notes
 from helpers.spot_helpers.dict_updates import _update_multi_inner
 
 func execute_note_split{
-    pedersen_ptr: HashBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, state_dict: DictAccess*, note_updates: Note*
 }() {
     alloc_locals;
 
@@ -32,7 +30,7 @@ func execute_note_split{
 }
 
 func verify_notes_consistencies{
-    pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
 }(notes_in_len: felt, notes_in: Note*, new_note: Note, refund_note: Note, token: felt) {
     let (notes_in_sum: felt) = sum_notes(notes_in_len, notes_in, token, 0);
     let notes_out_sum: felt = new_note.amount + refund_note.amount;
@@ -55,9 +53,9 @@ func verify_notes_consistencies{
     }
 }
 
-func store_output_notes{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
-    new_note: Note, refund_note: Note
-) {
+func store_output_notes{
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
+}(new_note: Note, refund_note: Note) {
     alloc_locals;
 
     // * Add the new note to the state dict
@@ -105,7 +103,7 @@ func store_output_notes{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, not
 
 //
 
-func handle_inputs{pedersen_ptr: HashBuiltin*}(
+func handle_inputs{poseidon_ptr: PoseidonBuiltin*}(
     token: felt*, notes_in_len: felt*, notes_in: Note**, new_note: Note*, refund_note: Note*
 ) {
     %{

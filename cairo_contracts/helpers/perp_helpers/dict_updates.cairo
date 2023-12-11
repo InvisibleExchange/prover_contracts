@@ -1,6 +1,4 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
 from starkware.cairo.common.dict_access import DictAccess
@@ -11,9 +9,9 @@ from starkware.cairo.common.math_cmp import is_le
 from perpetuals.order.order_structs import PerpOrder, PerpPosition, PositionHeader
 from helpers.utils import Note
 
-func update_state_dict{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
-    notes_in_len: felt, notes_in: Note*, refund_note: Note
-) {
+func update_state_dict{
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
+}(notes_in_len: felt, notes_in: Note*, refund_note: Note) {
     alloc_locals;
 
     let note_in = notes_in[0];
@@ -26,7 +24,7 @@ func update_state_dict{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note
     return _update_multi_inner(notes_in_len - 1, &notes_in[1]);
 }
 
-func update_one{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
+func update_one{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
     note_in: Note, refund_note: Note
 ) {
     // * Update the note dict
@@ -56,9 +54,9 @@ func update_one{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_update
     return ();
 }
 
-func _update_multi_inner{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
-    notes_in_len: felt, notes_in: Note*
-) {
+func _update_multi_inner{
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
+}(notes_in_len: felt, notes_in: Note*) {
     if (notes_in_len == 0) {
         return ();
     }
@@ -78,9 +76,9 @@ func _update_multi_inner{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, no
     return _update_multi_inner(notes_in_len - 1, &notes_in[1]);
 }
 
-func update_rc_state_dict{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
-    rc_note: Note
-) {
+func update_rc_state_dict{
+    poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
+}(rc_note: Note) {
     // * Update the note dict
     let state_dict_ptr = state_dict;
     assert state_dict_ptr.key = rc_note.index;
@@ -104,7 +102,7 @@ func update_rc_state_dict{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*, n
 
 // * UPDATE
 
-func update_position_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
+func update_position_state{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*}(
     prev_position_hash: felt, position: PerpPosition
 ) {
     // * Update the position dict
@@ -122,7 +120,7 @@ func update_position_state{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
     return ();
 }
 
-func update_position_state_on_close{pedersen_ptr: HashBuiltin*, state_dict: DictAccess*}(
+func update_position_state_on_close{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*}(
     prev_position_hash: felt, idx: felt
 ) {
     // * Update the note dict

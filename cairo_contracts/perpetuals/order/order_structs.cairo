@@ -1,5 +1,3 @@
-from starkware.cairo.common.ec_point import EcPoint
-
 from helpers.utils import Note
 
 struct PerpOrder {

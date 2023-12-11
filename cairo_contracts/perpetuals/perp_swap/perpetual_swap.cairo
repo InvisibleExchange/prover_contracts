@@ -1,36 +1,22 @@
 // %builtins output pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
 from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.math import unsigned_div_rem, assert_le
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.squash_dict import squash_dict
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
 
 from helpers.utils import Note
 
-from rollup.output_structs import NoteDiffOutput, PerpPositionOutput, ZeroOutput
 from rollup.global_config import GlobalConfig
 
 from helpers.perp_helpers.checks import consistency_checks, range_checks
 
-from perpetuals.prices.prices import PriceRange
-from perpetuals.funding.funding import FundingInfo, set_funding_info
+from perpetuals.funding.funding import FundingInfo
 
 from perpetuals.transaction.perp_transaction import execute_perpetual_transaction
 from perpetuals.order.order_structs import PerpOrder
 
 func execute_perpetual_swap{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,

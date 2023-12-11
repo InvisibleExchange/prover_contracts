@@ -1,15 +1,9 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.signature import verify_ecdsa_signature
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin, SignatureBuiltin
+from starkware.cairo.common.signature import verify_ecdsa_signature, check_ecdsa_signature
 from starkware.cairo.common.ec import ec_add
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.ec_point import EcPoint
-
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 
 from helpers.utils import Note
 from perpetuals.order.order_structs import (
@@ -55,11 +49,9 @@ func verify_spot_tab_order_signature{ecdsa_ptr: SignatureBuiltin*}(
         ids.sig_s = int(signature[1])
     %}
 
-    verify_ecdsa_signature(
+    return verify_ecdsa_signature(
         message=tx_hash, public_key=tab_pub_key, signature_r=sig_r, signature_s=sig_s
     );
-
-    return ();
 }
 
 func verify_sig{ecdsa_ptr: SignatureBuiltin*}(tx_hash: felt, pub_key: EcPoint) {
@@ -75,8 +67,16 @@ func verify_sig{ecdsa_ptr: SignatureBuiltin*}(tx_hash: felt, pub_key: EcPoint) {
     return verify_ecdsa_signature(
         message=tx_hash, public_key=pub_key.x, signature_r=sig_r, signature_s=sig_s
     );
+}
 
-    return ();
+func is_signature_valid{ec_op_ptr: EcOpBuiltin*}(
+    tx_hash: felt, pub_key: felt, sig_r: felt, sig_s: felt
+) -> (res: felt) {
+    alloc_locals;
+
+    return check_ecdsa_signature(
+        message=tx_hash, public_key=pub_key, signature_r=sig_r, signature_s=sig_s
+    );
 }
 
 // * PERPETUAL SIGNATURES * //
@@ -102,7 +102,7 @@ func verify_open_order_signature{ecdsa_ptr: SignatureBuiltin*}(
     return (pub_key_sum,);
 }
 
-func verify_order_signature{pedersen_ptr: HashBuiltin*, ecdsa_ptr: SignatureBuiltin*}(
+func verify_order_signature{poseidon_ptr: PoseidonBuiltin*, ecdsa_ptr: SignatureBuiltin*}(
     order_hash: felt, position: PerpPosition
 ) {
     alloc_locals;
@@ -124,7 +124,7 @@ func verify_order_signature{pedersen_ptr: HashBuiltin*, ecdsa_ptr: SignatureBuil
     return ();
 }
 
-func verify_margin_change_signature{pedersen_ptr: HashBuiltin*, ecdsa_ptr: SignatureBuiltin*}(
+func verify_margin_change_signature{poseidon_ptr: PoseidonBuiltin*, ecdsa_ptr: SignatureBuiltin*}(
     msg_hash: felt, notes_in_len: felt, notes_in: Note*, position_address: felt, is_increase: felt
 ) {
     alloc_locals;
@@ -156,7 +156,7 @@ func verify_margin_change_signature{pedersen_ptr: HashBuiltin*, ecdsa_ptr: Signa
 }
 
 // * ORDER TAB SIGNATURES * //
-func verify_open_order_tab_signature{ecdsa_ptr: SignatureBuiltin*, pedersen_ptr: HashBuiltin*}(
+func verify_open_order_tab_signature{ecdsa_ptr: SignatureBuiltin*, poseidon_ptr: PoseidonBuiltin*}(
     prev_tab_hash: felt,
     new_tab_hash: felt,
     base_notes_len: felt,
@@ -192,7 +192,7 @@ func verify_open_order_tab_signature{ecdsa_ptr: SignatureBuiltin*, pedersen_ptr:
     return ();
 }
 
-func verify_close_order_tab_signature{ecdsa_ptr: SignatureBuiltin*, pedersen_ptr: HashBuiltin*}(
+func verify_close_order_tab_signature{ecdsa_ptr: SignatureBuiltin*, poseidon_ptr: PoseidonBuiltin*}(
     tab_hash: felt,
     base_amount_change: felt,
     quote_amount_change: felt,
@@ -223,26 +223,23 @@ func verify_close_order_tab_signature{ecdsa_ptr: SignatureBuiltin*, pedersen_ptr
 }
 
 // helpers
-func _get_open_tab_hash_internal{pedersen_ptr: HashBuiltin*}(
+func _get_open_tab_hash_internal{poseidon_ptr: PoseidonBuiltin*}(
     prev_tab_hash: felt, new_tab_hash: felt, base_refund_hash: felt, quote_refund_hash: felt
 ) -> felt {
     alloc_locals;
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, prev_tab_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, new_tab_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, base_refund_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, quote_refund_hash);
+    let (local arr: felt*) = alloc();
+    assert arr[0] = prev_tab_hash;
+    assert arr[1] = new_tab_hash;
+    assert arr[2] = base_refund_hash;
+    assert arr[3] = quote_refund_hash;
 
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return res;
-    }
+    let (res) = poseidon_hash_many(4, arr);
+
+    return res;
 }
 
-func _get_close_tab_hash_internal{pedersen_ptr: HashBuiltin*}(
+func _get_close_tab_hash_internal{poseidon_ptr: PoseidonBuiltin*}(
     tab_hash: felt,
     base_amount_change: felt,
     quote_amount_change: felt,
@@ -252,26 +249,21 @@ func _get_close_tab_hash_internal{pedersen_ptr: HashBuiltin*}(
     alloc_locals;
     // & header_hash = H({order_tab_hash, base_amount_change, quote_amount_change, base_close_order_fields.hash, quote_close_order_fields.hash})
 
-    let hash_ptr = pedersen_ptr;
-    with hash_ptr {
-        let (hash_state_ptr) = hash_init();
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, tab_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, base_amount_change);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, quote_amount_change);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, base_fields_hash);
-        let (hash_state_ptr) = hash_update_single(hash_state_ptr, quote_fields_hash);
+    let (local arr: felt*) = alloc();
+    assert arr[0] = tab_hash;
+    assert arr[1] = base_amount_change;
+    assert arr[2] = quote_amount_change;
+    assert arr[3] = base_fields_hash;
+    assert arr[4] = quote_fields_hash;
 
-        let (res) = hash_finalize(hash_state_ptr);
-        let pedersen_ptr = hash_ptr;
-        return res;
-    }
+    let (res) = poseidon_hash_many(5, arr);
+
+    return res;
 }
 
 // HELPERS ================================================= #
 
-func sum_pub_keys{ecdsa_ptr: SignatureBuiltin*}(
-    notes_len: felt, notes: Note*, pub_key_sum: EcPoint
-) -> (pk_sum: EcPoint) {
+func sum_pub_keys(notes_len: felt, notes: Note*, pub_key_sum: EcPoint) -> (pk_sum: EcPoint) {
     if (notes_len == 0) {
         return (pub_key_sum,);
     }

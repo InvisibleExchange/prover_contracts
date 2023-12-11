@@ -1,9 +1,8 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.signature import verify_ecdsa_signature
-from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math import unsigned_div_rem, assert_le
-from starkware.cairo.common.bool import TRUE, FALSE
+from starkware.cairo.common.bool import TRUE
 
 from rollup.global_config import get_array_index_for_token, get_observer_by_index, GlobalConfig
 from helpers.utils import Note

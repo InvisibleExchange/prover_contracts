@@ -1,20 +1,16 @@
 // %builtins output pedersen range_check
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.math import assert_le
 from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.squash_dict import squash_dict
 
 from helpers.utils import Note, construct_new_note
-from helpers.signatures.signatures import verify_close_order_tab_signature
+from helpers.signatures import verify_close_order_tab_signature
 
 from perpetuals.order.order_structs import CloseOrderFields
 
-from rollup.output_structs import ZeroOutput, NoteDiffOutput
 from rollup.global_config import GlobalConfig, get_dust_amount
 
 from order_tabs.order_tab import OrderTab, TabHeader, verify_order_tab_hash, hash_order_tab_inner
@@ -25,7 +21,7 @@ from order_tabs.update_dicts import (
 )
 
 func close_order_tab{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -54,7 +50,7 @@ func close_order_tab{
     %}
 
     with_attr error_message("ORDER TAB HASH IS INVALID") {
-        let header_hash = verify_order_tab_hash(order_tab);
+        verify_order_tab_hash(order_tab);
     }
 
     // ? Verify the signature
@@ -132,7 +128,7 @@ func close_order_tab{
     }
 }
 
-func handle_order_tab_input{pedersen_ptr: HashBuiltin*}(order_tab: OrderTab*) {
+func handle_order_tab_input{poseidon_ptr: PoseidonBuiltin*}(order_tab: OrderTab*) {
     %{
         order_tab_addr = ids.order_tab.address_
         tab_header_addr = order_tab_addr + ids.OrderTab.tab_header
@@ -158,7 +154,7 @@ func handle_order_tab_input{pedersen_ptr: HashBuiltin*}(order_tab: OrderTab*) {
     return ();
 }
 
-func get_close_order_fields{pedersen_ptr: HashBuiltin*}(
+func get_close_order_fields{poseidon_ptr: PoseidonBuiltin*}(
     base_close_order_fields: CloseOrderFields*, quote_close_order_fields: CloseOrderFields*
 ) {
     %{

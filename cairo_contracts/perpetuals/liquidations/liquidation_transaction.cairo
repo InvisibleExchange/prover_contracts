@@ -1,4 +1,4 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.math import unsigned_div_rem, assert_le
@@ -7,7 +7,7 @@ from starkware.cairo.common.pow import pow
 
 from helpers.utils import Note
 
-from helpers.signatures.signatures import verify_open_order_signature
+from helpers.signatures import verify_open_order_signature
 
 from rollup.global_config import (
     GlobalConfig,
@@ -34,12 +34,13 @@ from perpetuals.liquidations.helpers import (
 from perpetuals.order.perp_position import (
     construct_new_position,
     is_position_liquidatable,
+    get_liquidatable_value,
     liquidate_position_partialy_internal,
     liquidate_position_fully_internal,
 )
 
 func execute_liquidation_order{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
@@ -84,7 +85,9 @@ func execute_liquidation_order{
     // TODO: validate_price_in_range(index_price, position.position_header.synthetic_token);
 
     // ? Check the position is liquidatable
-    let (liquidatable_size: felt) = is_position_liquidatable(position, market_price, index_price);
+    let (is_liquidatable: felt) = is_position_liquidatable(position, index_price);
+    assert is_liquidatable = 1;
+    let (liquidatable_size: felt) = get_liquidatable_value(position, market_price);
 
     assert_le(1, liquidatable_size);  // ? liquidatable_size > 0
     assert_le(liquidatable_size, liquidation_order.synthetic_amount);
@@ -169,7 +172,9 @@ func execute_liquidation_order{
 }
 
 //
-func open_new_position{range_check_ptr, pedersen_ptr: HashBuiltin*, global_config: GlobalConfig*}(
+func open_new_position{
+    range_check_ptr, poseidon_ptr: PoseidonBuiltin*, global_config: GlobalConfig*
+}(
     liquidation_order: LiquidationOrder*,
     open_order_fields: OpenOrderFields*,
     liquidatable_size: felt,

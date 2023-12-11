@@ -1,21 +1,10 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.dict import dict_new, dict_write, dict_update, dict_squash, dict_read
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, SignatureBuiltin
+from starkware.cairo.common.dict import dict_update
 from starkware.cairo.common.dict_access import DictAccess
-from starkware.cairo.common.hash import hash2
-from starkware.cairo.common.ec_point import EcPoint
-from starkware.cairo.common.math import unsigned_div_rem, assert_le
-from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.hash_state import (
-    hash_init,
-    hash_finalize,
-    hash_update,
-    hash_update_single,
-)
+from starkware.cairo.common.math import assert_le
 
-from helpers.utils import Note, construct_new_note, sum_notes, hash_note, take_fee
-from helpers.signatures.signatures import verify_spot_tab_order_signature
+from helpers.utils import Note, construct_new_note, sum_notes, take_fee
+from helpers.signatures import verify_spot_tab_order_signature
 from helpers.spot_helpers.dict_updates import update_state_dict
 
 from helpers.spot_helpers.partial_fill_helpers import refund_partial_fill
@@ -29,7 +18,7 @@ from order_tabs.order_tab import OrderTab, hash_order_tab_inner
 from invisible_swaps.order.invisible_order import hash_transaction, Invisibl3Order
 
 func execute_tab_orders{
-    pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,

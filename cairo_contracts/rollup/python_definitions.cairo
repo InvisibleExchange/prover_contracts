@@ -1,12 +1,6 @@
 from helpers.utils import Note
 from invisible_swaps.order.invisible_order import Invisibl3Order
-from perpetuals.order.order_structs import (
-    PerpOrder,
-    OpenOrderFields,
-    CloseOrderFields,
-    PerpPosition,
-    PositionHeader,
-)
+from perpetuals.order.order_structs import PerpOrder, OpenOrderFields, PerpPosition, PositionHeader
 from deposits_withdrawals.deposits.deposit_utils import Deposit
 from deposits_withdrawals.withdrawals.withdraw_utils import Withdrawal
 
@@ -77,6 +71,25 @@ func python_define_utils() {
         POS_HEADER_VLP_TOKEN_OFFSET = ids.PositionHeader.vlp_token
         POS_HEADER_MAX_VLP_SUPPLY_OFFSET = ids.PositionHeader.max_vlp_supply
         POS_HEADER_HASH_OFFSET = ids.PositionHeader.hash
+
+
+        # * ORDER TAB =================================================================
+        ORDER_TAB_SIZE = ids.OrderTab.SIZE
+        ORDER_TAB_IDX_OFFSET = ids.OrderTab.tab_idx
+        ORDER_TAB_BASE_AMOUNT_OFFSET = ids.OrderTab.base_amount
+        ORDER_TAB_QUOTE_AMOUNT_OFFSET = ids.OrderTab.quote_amount
+        ORDER_TAB_VLP_SUPPLY_OFFSET = ids.OrderTab.vlp_supply
+        ORDER_TAB_HASH_OFFSET = ids.OrderTab.hash
+
+        TAB_HEADER_IS_SMART_CONTRACT_OFFSET = ids.TabHeader.is_smart_contract
+        TAB_HEADER_BASE_TOKEN_OFFSET = ids.TabHeader.base_token
+        TAB_HEADER_QUOTE_TOKEN_OFFSET = ids.TabHeader.quote_token
+        TAB_HEADER_BASE_BLINDING_OFFSET = ids.TabHeader.base_blinding
+        TAB_HEADER_QUOTE_BLINDING_OFFSET = ids.TabHeader.quote_blinding
+        TAB_HEADER_VLP_TOKEN_OFFSET = ids.TabHeader.vlp_token
+        TAB_HEADER_MAX_VLP_SUPPLY_OFFSET = ids.TabHeader.max_vlp_supply
+        TAB_HEADER_PUB_KEY_OFFSET = ids.TabHeader.pub_key
+        TAB_HEADER_HASH_OFFSET = ids.TabHeader.hash
 
 
         # * WITHDRAWAL ================================================================
@@ -163,18 +176,20 @@ func python_define_utils() {
 
 
 
-        def store_output_order_tab(header_address, index, base_amount, quote_amount, vlp_supply, new_updated_hash):
+        def store_output_order_tab(tab_address, index, base_amount, quote_amount, vlp_supply, new_updated_hash):
+
+            header_address = tab_address + ids.OrderTab.tab_header
             output_tabs[index] = {
                 "index": index,
-                "is_smart_contract": memory[header_address + ids.TabHeader.is_smart_contract],
-                "base_token": memory[header_address + ids.TabHeader.base_token],
-                "quote_token": memory[header_address + ids.TabHeader.quote_token],
-                "base_blinding": memory[header_address + ids.TabHeader.base_blinding],
-                "quote_blinding": memory[header_address + ids.TabHeader.quote_blinding],
-                "pub_key": memory[header_address + ids.TabHeader.pub_key],
-                "header_hash": memory[header_address + ids.TabHeader.hash],
-                "vlp_token": memory[header_address + ids.TabHeader.vlp_token],
-                "max_vlp_supply": memory[header_address + ids.TabHeader.max_vlp_supply],
+                "is_smart_contract": memory[header_address + TAB_HEADER_IS_SMART_CONTRACT_OFFSET],
+                "base_token": memory[header_address + TAB_HEADER_BASE_TOKEN_OFFSET],
+                "quote_token": memory[header_address + TAB_HEADER_QUOTE_TOKEN_OFFSET],
+                "base_blinding": memory[header_address + TAB_HEADER_BASE_BLINDING_OFFSET],
+                "quote_blinding": memory[header_address + TAB_HEADER_QUOTE_BLINDING_OFFSET],
+                "pub_key": memory[header_address + TAB_HEADER_PUB_KEY_OFFSET ],
+                "header_hash": memory[header_address + TAB_HEADER_HASH_OFFSET],
+                "vlp_token": memory[header_address + TAB_HEADER_VLP_TOKEN_OFFSET],
+                "max_vlp_supply": memory[header_address + TAB_HEADER_MAX_VLP_SUPPLY_OFFSET],
                 "base_amount": base_amount,
                 "quote_amount": quote_amount,
                 "vlp_supply": vlp_supply,
@@ -191,15 +206,15 @@ func python_define_utils() {
             memory[tab_address + ids.OrderTab.hash] = int(order_tab["hash"])
 
             header_address = tab_address + ids.OrderTab.tab_header
-            memory[header_address + ids.TabHeader.is_smart_contract] = int(order_tab["is_smart_contract"])
-            memory[header_address + ids.TabHeader.base_token] = int(order_tab["base_token"])
-            memory[header_address + ids.TabHeader.quote_token] = int(order_tab["quote_token"])
-            memory[header_address + ids.TabHeader.base_blinding] = int(order_tab["base_blinding"])
-            memory[header_address + ids.TabHeader.quote_blinding] = int(order_tab["quote_blinding"])
-            memory[header_address + ids.TabHeader.vlp_token] = int(order_tab["vlp_token"])
-            memory[header_address + ids.TabHeader.max_vlp_supply] = int(order_tab["max_vlp_supply"])
-            memory[header_address + ids.TabHeader.pub_key] = int(order_tab["pub_key"])
-            memory[header_address + ids.TabHeader.hash] = int(order_tab["header_hash"])
+            memory[header_address + TAB_HEADER_IS_SMART_CONTRACT_OFFSET] = int(order_tab["is_smart_contract"])
+            memory[header_address + TAB_HEADER_BASE_TOKEN_OFFSET] = int(order_tab["base_token"])
+            memory[header_address + TAB_HEADER_QUOTE_TOKEN_OFFSET] = int(order_tab["quote_token"])
+            memory[header_address + TAB_HEADER_BASE_BLINDING_OFFSET] = int(order_tab["base_blinding"])
+            memory[header_address + TAB_HEADER_QUOTE_BLINDING_OFFSET] = int(order_tab["quote_blinding"])
+            memory[header_address + TAB_HEADER_VLP_TOKEN_OFFSET] = int(order_tab["vlp_token"])
+            memory[header_address + TAB_HEADER_MAX_VLP_SUPPLY_OFFSET] = int(order_tab["max_vlp_supply"])
+            memory[header_address + TAB_HEADER_PUB_KEY_OFFSET] = int(order_tab["pub_key"])
+            memory[header_address + TAB_HEADER_HASH_OFFSET] = int(order_tab["header_hash"])
 
 
         def print_position(position_address):

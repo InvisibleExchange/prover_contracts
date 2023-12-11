@@ -1,4 +1,4 @@
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.bool import TRUE, FALSE
 
 // Structures:
@@ -19,7 +19,10 @@ struct GlobalDexState {
     n_output_positions: felt,
     n_output_tabs: felt,
     n_zero_indexes: felt,
-    n_mm_registrations: felt,
+    n_onchain_mm_actions: felt,
+    n_note_escapes: felt,
+    n_position_escapes: felt,
+    n_tab_escapes: felt,
 }
 
 struct GlobalConfig {
@@ -193,7 +196,11 @@ func init_global_config(global_config_ptr: GlobalConfig*) {
         memory[dex_state_addr + ids.GlobalDexState.n_output_positions] = program_input_counts["n_output_positions"]
         memory[dex_state_addr + ids.GlobalDexState.n_output_tabs] = program_input_counts["n_output_tabs"]
         memory[dex_state_addr + ids.GlobalDexState.n_zero_indexes] = program_input_counts["n_zero_indexes"]
-        memory[dex_state_addr + ids.GlobalDexState.n_mm_registrations] = program_input_counts["n_mm_registrations"]
+        memory[dex_state_addr + ids.GlobalDexState.n_onchain_mm_actions] = program_input_counts["n_onchain_mm_actions"]
+        memory[dex_state_addr + ids.GlobalDexState.n_note_escapes] = program_input_counts["n_note_escapes"]
+        memory[dex_state_addr + ids.GlobalDexState.n_position_escapes] = program_input_counts["n_position_escapes"]
+        memory[dex_state_addr + ids.GlobalDexState.n_tab_escapes] = program_input_counts["n_tab_escapes"]
+
 
         # // * GLOBAL CONFIG FIELDS
         global_config = program_input["global_config"]
@@ -258,10 +265,11 @@ func init_global_config(global_config_ptr: GlobalConfig*) {
 // * ===============================================================
 
 // & depth_and_exipration_time: | state_tree_depth (8 bits) | global_expiration_timestamp (32 bits) |
-// & output_counts: | n_deposits (32 bits) | n_withdrawals (32 bits) | n_output_notes (32 bits) |
-// &                | n_output_positions (32 bits) | n_output_tabs (32 bits) | n_zero_indexes (32 bits) |
+// & output_counts1: | n_output_notes (32 bits) | n_output_positions (16 bits) | n_output_tabs (16 bits) | n_zero_indexes (32 bits) |
+// &                 n_deposits (16 bits) | n_withdrawals (16 bits) | n_mm_registrations (16 bits) | n_mm_add_liquidity (16 bits) |
+// &                 n_mm_remove_liquidity (16 bits) | n_note_escapes (16 bits) | n_position_escapes (16 bits) | n_tab_escapes (16 bits) |
 
-func init_output_structs{pedersen_ptr: HashBuiltin*}(
+func init_output_structs{poseidon_ptr: PoseidonBuiltin*}(
     config_output_ptr: felt*, global_config: GlobalConfig*
 ) -> (config_output_ptr: felt*) {
     let dex_state: GlobalDexState = global_config.dex_state;
@@ -275,26 +283,24 @@ func init_output_structs{pedersen_ptr: HashBuiltin*}(
     ) * 2 ** 32 + dex_state.tx_batch_id;
     assert config_output_ptr[2] = batched_info;
 
-    // & 2: | n_deposits (32 bits) | n_withdrawals (32 bits) | n_mm_registrations (32 bits) | n_output_notes (32 bits) |
-    // &    | n_output_positions (32 bits) | n_output_tabs (32 bits) | n_zero_indexes (32 bits) |
-    let batched_info = (
-        (
-            (
-                (
-                    ((dex_state.n_deposits * 2 ** 32) + dex_state.n_withdrawals) * 2 ** 32 +
-                    dex_state.n_mm_registrations
-                ) * 2 ** 32 +
-                dex_state.n_output_notes
-            ) * 2 ** 32 +
-            dex_state.n_output_positions
-        ) * 2 ** 32 +
+    // & 2:
+    // & n_output_notes (32 bits) | n_output_positions (16 bits) | n_output_tabs (16 bits) | n_zero_indexes (32 bits) | n_deposits (16 bits) | n_withdrawals (16 bits) |
+    // & n_onchain_mm_actions (16 bits) | n_note_escapes (16 bits) | n_position_escapes (16 bits) | n_tab_escapes (16 bits) |
+    let o1 = (
+        ((dex_state.n_output_notes * 2 ** 16) + dex_state.n_output_positions) * 2 ** 16 +
         dex_state.n_output_tabs
     ) * 2 ** 32 + dex_state.n_zero_indexes;
+    let o2 = (((o1 * 2 ** 16) + dex_state.n_deposits) * 2 ** 16 + dex_state.n_withdrawals) * 2 **
+        16 + dex_state.n_onchain_mm_actions;
+    let batched_info = (
+        ((o2 * 2 ** 16) + dex_state.n_note_escapes) * 2 ** 16 + dex_state.n_position_escapes
+    ) * 2 ** 16 + dex_state.n_tab_escapes;
+
     assert config_output_ptr[3] = batched_info;
 
     // * Global Config =========================================================================
 
-    // & 1: | collateral_token (32 bits) | leverage_decimals (8 bits) | assets_len (32 bits) | synthetic_assets_len (32 bits) | observers_len (32 bits) | chain_ids_len (32 bits) |
+    // & 3: | collateral_token (32 bits) | leverage_decimals (8 bits) | assets_len (32 bits) | synthetic_assets_len (32 bits) | observers_len (32 bits) | chain_ids_len (32 bits) |
     let batched_info = (
         (
             (
