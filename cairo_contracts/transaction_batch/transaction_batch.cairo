@@ -1,6 +1,12 @@
-%builtins output pedersen range_check ecdsa bitwise
+%builtins output pedersen range_check poseidon ecdsa bitwise ec_op
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
+from starkware.cairo.common.cairo_builtins import (
+    PoseidonBuiltin,
+    EcOpBuiltin,
+    SignatureBuiltin,
+    BitwiseBuiltin,
+    HashBuiltin,
+)
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.merkle_multi_update import merkle_multi_update
@@ -31,7 +37,7 @@ from rollup.output_structs import (
     PerpPositionOutput,
     OrderTabOutput,
     ZeroOutput,
-    MMRegistrationOutput,
+    OnChainMMActionOutput,
     WithdrawalTransactionOutput,
     DepositTransactionOutput,
     write_state_updates_to_output,
@@ -44,19 +50,26 @@ from rollup.global_config import (
     init_output_structs,
     GlobalDexState,
 )
+from rollup.partition_output import partition_output
+
+from forced_escapes.escape_helpers import EscapeOutput, PositionEscapeOutput
+from forced_escapes.note_escape import execute_forced_note_escape
+from forced_escapes.order_tab_escape import execute_forced_tab_escape
+from forced_escapes.position_escape import execute_forced_position_escape
 
 from smart_contract_mms.register_mm import register_mm
 from smart_contract_mms.add_liquidity import add_liquidity_to_mm
 from smart_contract_mms.remove_liquidity import remove_liquidity_from_mm
-
-const TREE_DEPTH = 5;
+from smart_contract_mms.close_mm import close_mm_position
 
 func main{
     output_ptr,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr,
+    poseidon_ptr: PoseidonBuiltin*,
     ecdsa_ptr: SignatureBuiltin*,
     bitwise_ptr: BitwiseBuiltin*,
+    ec_op_ptr: EcOpBuiltin*,
 }() {
     alloc_locals;
 
@@ -90,53 +103,22 @@ func main{
     init_global_config(global_config);
 
     // * SPLIT OUTPUT SECTIONS ******************************************************
-    // ? DexState and GlobalConfig
-    local config_output_ptr: felt* = cast(output_ptr, felt*);
-    let (config_output_ptr: felt*) = init_output_structs(config_output_ptr, global_config);
 
-    // ? Accumulated hashes
-    local accumulated_hashes: AccumulatedHashesOutput* = cast(
-        config_output_ptr, AccumulatedHashesOutput*
-    );
-    // ? Deposits
-    local deposit_output_ptr: DepositTransactionOutput* = cast(
-        accumulated_hashes + global_config.chain_ids_len * AccumulatedHashesOutput.SIZE,
-        DepositTransactionOutput*,
-    );
-    // ? Withdrawals
-    local withdraw_output_ptr: WithdrawalTransactionOutput* = cast(
-        deposit_output_ptr + global_config.dex_state.n_deposits * DepositTransactionOutput.SIZE,
-        WithdrawalTransactionOutput*,
-    );
+    let (
+        local accumulated_hashes: AccumulatedHashesOutput*,
+        local deposit_output_ptr: DepositTransactionOutput*,
+        local withdraw_output_ptr: WithdrawalTransactionOutput*,
+        local onchain_mm_action_output_ptr: OnChainMMActionOutput*,
+        local escape_output_ptr: EscapeOutput*,
+        local position_escape_output_ptr: PositionEscapeOutput*,
+        local note_output_ptr: NoteDiffOutput*,
+        local position_output_ptr: PerpPositionOutput*,
+        local tab_output_ptr: OrderTabOutput*,
+        local empty_output_ptr: ZeroOutput*,
+    ) = partition_output(global_config);
+
     let deposit_output_ptr_start = deposit_output_ptr;
     let withdraw_output_ptr_start = withdraw_output_ptr;
-
-    // ? MM registrations
-    local registration_output_ptr: MMRegistrationOutput* = cast(
-        withdraw_output_ptr + global_config.dex_state.n_withdrawals *
-        WithdrawalTransactionOutput.SIZE,
-        MMRegistrationOutput*,
-    );
-    // ? Note updates
-    local note_output_ptr: NoteDiffOutput* = cast(
-        registration_output_ptr + global_config.dex_state.n_mm_registrations *
-        MMRegistrationOutput.SIZE,
-        NoteDiffOutput*,
-    );
-    // ? Positon updates
-    local position_output_ptr: PerpPositionOutput* = cast(
-        note_output_ptr + global_config.dex_state.n_output_notes * NoteDiffOutput.SIZE,
-        PerpPositionOutput*,
-    );
-    // ? Order tab updates
-    local tab_output_ptr: OrderTabOutput* = cast(
-        position_output_ptr + global_config.dex_state.n_output_positions * PerpPositionOutput.SIZE,
-        OrderTabOutput*,
-    );
-    // ? Zero outputs
-    local empty_output_ptr: ZeroOutput* = cast(
-        tab_output_ptr + global_config.dex_state.n_output_tabs * OrderTabOutput.SIZE, ZeroOutput*
-    );
 
     // * SET FUNDING INFO AND PRICE RANGES * #
     local funding_info: FundingInfo*;
@@ -161,7 +143,9 @@ func main{
         fee_tracker_dict=fee_tracker_dict,
         deposit_output_ptr=deposit_output_ptr,
         withdraw_output_ptr=withdraw_output_ptr,
-        registration_output_ptr=registration_output_ptr,
+        onchain_mm_action_output_ptr=onchain_mm_action_output_ptr,
+        escape_output_ptr=escape_output_ptr,
+        position_escape_output_ptr=position_escape_output_ptr,
         funding_info=funding_info,
         global_config=global_config,
     }();
@@ -196,21 +180,19 @@ func main{
 
     // * VERIFY MERKLE TREE UPDATES ******************************************************
 
-    // verify_merkle_tree_updates(
-    //     global_config.dex_state.init_state_root,
-    //     global_config.dex_state.final_state_root,
-    //     squashed_state_dict,
-    //     squashed_state_dict_len,
-    //     global_config.dex_state.state_tree_depth,
-    // );
+    verify_merkle_tree_updates(
+        global_config.dex_state.init_state_root,
+        global_config.dex_state.final_state_root,
+        squashed_state_dict,
+        squashed_state_dict_len,
+        global_config.dex_state.state_tree_depth,
+    );
 
     // * WRITE STATE UPDATES TO THE PROGRAM OUTPUT ******************************
 
     // TODO: Must verify that the output lengths are consistent with those defined in dex_state
     %{ stored_indexes = {} %}
     write_state_updates_to_output{
-        pedersen_ptr=pedersen_ptr,
-        bitwise_ptr=bitwise_ptr,
         note_output_ptr=note_output_ptr,
         position_output_ptr=position_output_ptr,
         tab_output_ptr=tab_output_ptr,
@@ -235,14 +217,18 @@ func main{
 
 func execute_transactions{
     pedersen_ptr: HashBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
+    ec_op_ptr: EcOpBuiltin*,
     ecdsa_ptr: SignatureBuiltin*,
     state_dict: DictAccess*,
     note_updates: Note*,
     fee_tracker_dict: DictAccess*,
     deposit_output_ptr: DepositTransactionOutput*,
     withdraw_output_ptr: WithdrawalTransactionOutput*,
-    registration_output_ptr: MMRegistrationOutput*,
+    onchain_mm_action_output_ptr: OnChainMMActionOutput*,
+    escape_output_ptr: EscapeOutput*,
+    position_escape_output_ptr: PositionEscapeOutput*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
 }() {
@@ -255,6 +241,8 @@ func execute_transactions{
     %{
         current_transaction = transaction_input_data.pop(0) 
         tx_type = current_transaction["transaction_type"]
+
+        print("tx_type: ", tx_type)
 
         if tx_type in countsMap:
             countsMap[tx_type] += 1
@@ -336,26 +324,45 @@ func execute_transactions{
 
         return execute_transactions();
     }
-    if (nondet %{ tx_type == "onchain_register_mm" %} != 0) {
+    if (nondet %{ tx_type == "onchain_mm_action" %} != 0) {
         %{ current_order = current_transaction %}
 
-        register_mm();
+        if (nondet %{ current_order["action_type"] == "register_mm" %} != 0) {
+            register_mm();
 
-        return execute_transactions();
+            return execute_transactions();
+        }
+        if (nondet %{ current_order["action_type"] == "add_liquidity" %} != 0) {
+            add_liquidity_to_mm();
+
+            return execute_transactions();
+        }
+        if (nondet %{ current_order["action_type"] == "remove_liquidity" %} != 0) {
+            remove_liquidity_from_mm();
+
+            return execute_transactions();
+        }
+        if (nondet %{ current_order["action_type"] == "close_mm_position" %} != 0) {
+            close_mm_position();
+
+            return execute_transactions();
+        }
     }
-    if (nondet %{ tx_type == "add_liquidity" %} != 0) {
-        %{ current_order = current_transaction %}
+    if (nondet %{ tx_type == "forced_escape" %} != 0) {
+        if (nondet %{ current_transaction["escape_type"] == "note_escape" %} != 0) {
+            execute_forced_note_escape();
 
-        add_liquidity_to_mm();
+            return execute_transactions();
+        }
+        if (nondet %{ current_transaction["escape_type"] == "order_tab_escape" %} != 0) {
+            execute_forced_tab_escape();
 
-        return execute_transactions();
-    }
-    if (nondet %{ tx_type == "remove_liquidity" %} != 0) {
-        %{ current_order = current_transaction %}
+            return execute_transactions();
+        } else {
+            execute_forced_position_escape();
 
-        remove_liquidity_from_mm();
-
-        return execute_transactions();
+            return execute_transactions();
+        }
     } else {
         %{ print("unknown transaction type: ", current_transaction) %}
         return execute_transactions();
