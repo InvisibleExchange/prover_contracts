@@ -275,8 +275,6 @@ func write_deposit_info_to_output{
         64 + deposit.amount;
     assert output.stark_key = deposit.deposit_address;
 
-    // %{ print(ids.deposit.deposit_id, ids.deposit.token, ids.deposit.amount, ids.output.batched_deposit_info, ids.deposit.deposit_address) %}
-
     let deposit_output_ptr = deposit_output_ptr + DepositTransactionOutput.SIZE;
 
     return ();

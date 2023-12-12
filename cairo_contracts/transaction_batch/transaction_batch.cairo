@@ -1,4 +1,4 @@
-%builtins output pedersen range_check poseidon ecdsa bitwise ec_op
+%builtins output pedersen range_check ecdsa bitwise ec_op poseidon
 
 from starkware.cairo.common.cairo_builtins import (
     PoseidonBuiltin,
@@ -66,10 +66,10 @@ func main{
     output_ptr,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr,
-    poseidon_ptr: PoseidonBuiltin*,
     ecdsa_ptr: SignatureBuiltin*,
     bitwise_ptr: BitwiseBuiltin*,
     ec_op_ptr: EcOpBuiltin*,
+    poseidon_ptr: PoseidonBuiltin*,
 }() {
     alloc_locals;
 
@@ -242,8 +242,6 @@ func execute_transactions{
         current_transaction = transaction_input_data.pop(0) 
         tx_type = current_transaction["transaction_type"]
 
-        print("tx_type: ", tx_type)
-
         if tx_type in countsMap:
             countsMap[tx_type] += 1
         else:
@@ -386,3 +384,4 @@ func verify_merkle_tree_updates{pedersen_ptr: HashBuiltin*, range_check_ptr}(
 
     return ();
 }
+//

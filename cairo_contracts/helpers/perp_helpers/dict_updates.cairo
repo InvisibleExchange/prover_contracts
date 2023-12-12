@@ -49,8 +49,6 @@ func update_one{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_up
         return ();
     }
 
-    %{ leaf_node_types[ids.note_in.index] = "note" %}
-
     return ();
 }
 

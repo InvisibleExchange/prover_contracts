@@ -33,28 +33,6 @@ func update_one{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_up
 ) {
     // * --- --- --- --- ---
     let state_dict_ptr = state_dict;
-    assert state_dict_ptr.key = note_in.index;
-    assert state_dict_ptr.prev_value = note_in.hash;
-    assert state_dict_ptr.new_value = refund_note.hash;
-
-    let state_dict = state_dict + DictAccess.SIZE;
-    %{ leaf_node_types[ids.note_in.index] = "note" %}
-
-    // ? store to an array used for program outputs
-    if (refund_note.hash != 0) {
-        %{
-            note_output_idxs[ids.note_in.index] = note_outputs_len 
-            note_outputs_len += 1
-        %}
-
-        assert note_updates[0] = refund_note;
-        let note_updates = &note_updates[1];
-
-        return ();
-    }
-
-    // * --- --- --- --- ---
-    let state_dict_ptr = state_dict;
     assert state_dict_ptr.key = swap_note.index;
     assert state_dict_ptr.prev_value = 0;
     assert state_dict_ptr.new_value = swap_note.hash;
@@ -71,12 +49,51 @@ func update_one{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_up
         note_outputs_len += 1
     %}
 
+    // * --- --- --- --- ---
+    let state_dict_ptr = state_dict;
+    assert state_dict_ptr.key = note_in.index;
+    assert state_dict_ptr.prev_value = note_in.hash;
+    assert state_dict_ptr.new_value = refund_note.hash;
+
+    let state_dict = state_dict + DictAccess.SIZE;
+    %{ leaf_node_types[ids.note_in.index] = "note" %}
+
+    if (refund_note.hash != 0) {
+        %{
+            note_output_idxs[ids.note_in.index] = note_outputs_len 
+            note_outputs_len += 1
+        %}
+
+        assert note_updates[0] = refund_note;
+        let note_updates = &note_updates[1];
+
+        return ();
+    }
+
     return ();
 }
 
 func update_two{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*}(
     note_in1: Note, note_in2: Note, refund_note: Note, swap_note: Note
 ) {
+    // * --- --- --- --- ---
+    let state_dict_ptr = state_dict;
+    state_dict_ptr.key = swap_note.index;
+    state_dict_ptr.prev_value = note_in2.hash;
+    state_dict_ptr.new_value = swap_note.hash;
+
+    let state_dict = state_dict + DictAccess.SIZE;
+
+    // ? store to an array used for program outputs
+    assert note_updates[0] = swap_note;
+    let note_updates = &note_updates[1];
+
+    %{ leaf_node_types[ids.swap_note.index] = "note" %}
+    %{
+        note_output_idxs[ids.swap_note.index] = note_outputs_len 
+        note_outputs_len += 1
+    %}
+
     // * --- --- --- --- ---
     let state_dict_ptr = state_dict;
     state_dict_ptr.key = note_in1.index;
@@ -98,24 +115,6 @@ func update_two{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_up
 
         return ();
     }
-
-    // * --- --- --- --- ---
-    let state_dict_ptr = state_dict;
-    state_dict_ptr.key = swap_note.index;
-    state_dict_ptr.prev_value = note_in2.hash;
-    state_dict_ptr.new_value = swap_note.hash;
-
-    let state_dict = state_dict + DictAccess.SIZE;
-
-    // ? store to an array used for program outputs
-    assert note_updates[0] = swap_note;
-    let note_updates = &note_updates[1];
-
-    %{ leaf_node_types[ids.swap_note.index] = "note" %}
-    %{
-        note_output_idxs[ids.swap_note.index] = note_outputs_len 
-        note_outputs_len += 1
-    %}
 
     return ();
 }

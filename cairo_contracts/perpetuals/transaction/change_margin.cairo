@@ -124,9 +124,9 @@ func update_state_after_increase{
         let note_updates = &note_updates[1];
 
         return update_state_after_increase_inner(notes_in_len - 1, &notes_in[1]);
+    } else {
+        return update_state_after_increase_inner(notes_in_len - 1, &notes_in[1]);
     }
-
-    return update_state_after_increase_inner(notes_in_len - 1, &notes_in[1]);
 }
 
 func update_state_after_increase_inner{
