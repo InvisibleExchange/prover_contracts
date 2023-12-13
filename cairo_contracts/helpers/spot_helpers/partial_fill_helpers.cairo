@@ -14,7 +14,7 @@ from helpers.utils import Note, construct_new_note, sum_notes, validate_fee_take
 
 func refund_partial_fill{
     poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
-}(order: Invisibl3Order, address: felt, blinding: felt, unspent_amount: felt, prev_hash: felt) {
+}(order: Invisibl3Order, address: felt, blinding: felt, unspent_amount: felt) {
     //
 
     let (pfr_note: Note) = partial_fill_updates(order, address, blinding, unspent_amount);
@@ -23,7 +23,7 @@ func refund_partial_fill{
 
     let state_dict_ptr = state_dict;
     assert state_dict_ptr.key = pfr_note.index;
-    assert state_dict_ptr.prev_value = prev_hash;
+    assert state_dict_ptr.prev_value = 0;
     assert state_dict_ptr.new_value = pfr_note.hash;
 
     let state_dict = state_dict + DictAccess.SIZE;

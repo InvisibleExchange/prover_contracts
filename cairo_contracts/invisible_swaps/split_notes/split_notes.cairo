@@ -36,6 +36,7 @@ func verify_notes_consistencies{
     let notes_out_sum: felt = new_note.amount + refund_note.amount;
 
     assert notes_out_sum = notes_in_sum;
+    assert new_note.token = token;
 
     let note_in1 = notes_in[0];
     let note_in2 = notes_in[notes_in_len - 1];

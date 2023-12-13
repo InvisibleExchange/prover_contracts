@@ -11,14 +11,7 @@ from perpetuals.order.order_structs import PerpOrder
 
 func refund_partial_fill{
     poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
-}(
-    order: PerpOrder,
-    address: felt,
-    blinding: felt,
-    collateral_token: felt,
-    unspent_margin: felt,
-    prev_hash: felt,
-) {
+}(order: PerpOrder, address: felt, blinding: felt, collateral_token: felt, unspent_margin: felt) {
     let (pfr_note: Note) = partial_fill_updates(
         order, address, blinding, collateral_token, unspent_margin
     );
@@ -27,7 +20,7 @@ func refund_partial_fill{
 
     let state_dict_ptr = state_dict;
     assert state_dict_ptr.key = pfr_note.index;
-    assert state_dict_ptr.prev_value = prev_hash;
+    assert state_dict_ptr.prev_value = 0;
     assert state_dict_ptr.new_value = pfr_note.hash;
 
     let state_dict = state_dict + DictAccess.SIZE;

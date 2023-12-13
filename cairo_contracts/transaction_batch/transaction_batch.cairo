@@ -149,7 +149,7 @@ func main{
         funding_info=funding_info,
         global_config=global_config,
     }();
-    %{ print("countsMap: ", countsMap) %}
+    %{ print("\ncountsMap: ", countsMap) %}
 
     // * Squash dictionaries =============================================================================
 

@@ -567,7 +567,6 @@ func refund_unspent_margin_first_fill{
         notes_in_0.blinding_factor,
         open_order_fields.collateral_token,
         unspent_margin,
-        0,
     );
 
     return ();
@@ -611,7 +610,6 @@ func refund_unspent_margin_later_fills{
         pfr_note.blinding_factor,
         open_order_fields.collateral_token,
         unspent_margin,
-        pfr_note.hash,
     );
 
     return ();

@@ -122,7 +122,7 @@ func first_fill{
     let notes_in_0 = notes_in[0];
     let unspent_amount = invisibl3_order.amount_spent - spend_amount;
     refund_partial_fill(
-        invisibl3_order, notes_in_0.address.x, notes_in_0.blinding_factor, unspent_amount, 0
+        invisibl3_order, notes_in_0.address.x, notes_in_0.blinding_factor, unspent_amount
     );
 
     return ();
@@ -198,7 +198,6 @@ func later_fills{
     );
 
     // * Update the note dict with the new notes
-
     let state_dict_ptr = state_dict;
     assert state_dict_ptr.key = prev_fill_refund_note.index;
     assert state_dict_ptr.prev_value = prev_fill_refund_note.hash;
@@ -217,7 +216,7 @@ func later_fills{
     %}
 
     // ! if the order was filled partialy not completely ---------------------------
-    let spend_amount_left = prev_fill_refund_note.amount - spend_amount;
+    let spend_amount_left = prev_fill_refund_note.amount;
 
     let (dust_amount) = get_dust_amount(invisibl3_order.token_spent);
     let is_partialy_filled: felt = is_le(dust_amount, spend_amount_left - spend_amount);
@@ -231,7 +230,6 @@ func later_fills{
         prev_fill_refund_note.address.x,
         prev_fill_refund_note.blinding_factor,
         unspent_amount,
-        prev_fill_refund_note.hash,
     );
 
     return ();
