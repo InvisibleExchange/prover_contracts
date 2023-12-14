@@ -157,21 +157,51 @@ func _get_pnl{range_check_ptr, global_config: GlobalConfig*}(
         collateral_decimals;
     let (multiplier: felt) = pow(10, decimal_conversion);
 
-    let (bound: felt) = pow(2, 64);
+    // let (bound: felt) = pow(2, 64);
 
-    let delta = entry_price - mark_price + 2 * order_side * mark_price - 2 * order_side *
-        entry_price;
+    // let delta = entry_price - mark_price + 2 * order_side * mark_price - 2 * order_side *
+    //     entry_price;
 
-    let is_pnl_positive = is_le(0, delta);
+    // let is_pnl_positive = is_le(0, delta);
 
-    if (is_pnl_positive == 1) {
-        let (pnl, _) = unsigned_div_rem(delta * position_size, multiplier);
+    // if (is_pnl_positive == 1) {
+    //     let (pnl, _) = unsigned_div_rem(delta * position_size, multiplier);
 
-        return pnl;
+    // return pnl;
+    // } else {
+    //     let (pnl, _) = unsigned_div_rem((-delta) * position_size, multiplier);
+
+    // return -pnl;
+    // }
+
+    if (order_side == 1) {
+        // & Long position
+        let is_pnl_positive = is_le(entry_price, mark_price);
+        if (is_pnl_positive == 1) {
+            // & is profitable
+            let (pnl, _) = unsigned_div_rem((mark_price - entry_price) * position_size, multiplier);
+
+            return pnl;
+        } else {
+            // & is not profitable
+            let (pnl, _) = unsigned_div_rem((entry_price - mark_price) * position_size, multiplier);
+
+            return -pnl;
+        }
     } else {
-        let (pnl, _) = unsigned_div_rem((-delta) * position_size, multiplier);
+        // & Short position
+        let is_pnl_positive = is_le(mark_price, entry_price);
+        if (is_pnl_positive == 1) {
+            // & is profitable
+            let (pnl, _) = unsigned_div_rem((entry_price - mark_price) * position_size, multiplier);
 
-        return -pnl;
+            return pnl;
+        } else {
+            // & is not profitable
+            let (pnl, _) = unsigned_div_rem((mark_price - entry_price) * position_size, multiplier);
+
+            return -pnl;
+        }
     }
 }
 

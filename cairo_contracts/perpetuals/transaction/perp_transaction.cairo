@@ -188,7 +188,9 @@ func execute_open_order{
         );
 
         let (scaler) = pow(10, global_config.leverage_decimals);
-        let (leverage: felt, _) = unsigned_div_rem(spent_collateral * scaler, init_margin);
+        let (leverage: felt, _) = unsigned_div_rem(
+            spent_collateral * scaler, (init_margin - fee_taken)
+        );
 
         let (position: PerpPosition) = open_new_position(
             order,
@@ -339,6 +341,14 @@ func execute_close_order{
         close_order_fields.dest_received_blinding,
         index,
     );
+
+    // cairo: 'amount': 15809,663.511,
+    // json_: "amount": 15809,661.456,
+
+    %{
+        if ids.index == 148:
+            print_note(ids.return_collateral_note.address_)
+    %}
 
     update_rc_state_dict(return_collateral_note);
 
@@ -499,8 +509,8 @@ func close_position{
 
     // ! close position fully
     let (dust_amount) = get_dust_amount(order.synthetic_token);
-    let is_partial_close: felt = is_le(spent_synthetic, position.position_size - dust_amount - 1);
-    if (is_partial_close == 0) {
+    let is_full_close: felt = is_le(position.position_size - spent_synthetic, dust_amount);
+    if (is_full_close == 1) {
         //
 
         local funding_idx: felt;
@@ -554,11 +564,6 @@ func refund_unspent_margin_first_fill{
     if (all_margin_spent == 1) {
         return ();
     }
-    if (order_filled_partialy == 0) {
-        %{ print("!! ORDER FILLED BUT MARGIN NOT FULLY SPENT (SEE WHY)!!") %}
-        // Todo: Should do something with the leftover collateral (maybe insurance fund)
-        return ();
-    }
 
     let notes_in_0 = open_order_fields.notes_in[0];
     refund_partial_fill(
@@ -595,11 +600,6 @@ func refund_unspent_margin_later_fills{
     let all_margin_spent: felt = is_le(unspent_margin, dust_amount_collateral);
 
     if (all_margin_spent == 1) {
-        remove_prev_pfr_note(pfr_note);
-        return ();
-    }
-    if (nondet %{ current_order["amount_filled"] + ids.spent_synthetic + dust_amount_synthetic < ids.order.synthetic_amount %} != 0) {
-        %{ print("!! ORDER FILLED BUT MARGIN NOT FULLY SPENT (SEE WHY)!!") %}
         remove_prev_pfr_note(pfr_note);
         return ();
     }
@@ -711,10 +711,9 @@ func get_init_margin{range_check_ptr}(
 ) -> felt {
     alloc_locals;
 
-    let quotient = open_order_fields.initial_margin * spent_synthetic;
-    let divisor = order.synthetic_amount;
-
-    let (margin, _) = unsigned_div_rem(quotient, divisor);
+    let (margin, _) = unsigned_div_rem(
+        open_order_fields.initial_margin * spent_synthetic, order.synthetic_amount
+    );
 
     return margin;
 }
