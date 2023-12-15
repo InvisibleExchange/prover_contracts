@@ -95,7 +95,7 @@ func open_order_tab{
         let updated_quote_amount = order_tab.quote_amount + quote_amount;
 
         let updated_tab_hash = hash_order_tab_inner(
-            order_tab.tab_header, updated_base_amount, updated_quote_amount, order_tab.vlp_supply
+            order_tab.tab_header, updated_base_amount, updated_quote_amount
         );
 
         // ? Verify the signature

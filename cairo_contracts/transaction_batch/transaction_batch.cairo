@@ -13,6 +13,7 @@ from starkware.cairo.common.merkle_multi_update import merkle_multi_update
 from starkware.cairo.common.squash_dict import squash_dict
 from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.math_cmp import is_not_zero
+from starkware.cairo.common.cairo_keccak.keccak import finalize_keccak
 
 from invisible_swaps.swap.invisible_swap import execute_swap
 from deposits_withdrawals.deposits.deposit import verify_deposit
@@ -79,19 +80,19 @@ func main{
     // Define python hint functions and classes
     python_define_utils();
 
+    let (keccak_ptr: felt*) = alloc();
+    local keccak_ptr_start: felt* = keccak_ptr;
+
     // * INITIALIZE DICTIONARIES ***********************************************
 
     local state_dict: DictAccess*;  // Dictionary of updated notes (idx -> note hash)
     local fee_tracker_dict: DictAccess*;  // Dictionary of fees collected (token -> fees collected)
-    local order_tab_dict: DictAccess*;  // Dictionary of updated order tabs (idx -> tab hash)
     %{
         ids.state_dict = segments.add()
         ids.fee_tracker_dict = segments.add()
-        ids.order_tab_dict = segments.add()
     %}
     let state_dict_start = state_dict;
     let fee_tracker_dict_start = fee_tracker_dict;
-    let order_tab_dict_start = order_tab_dict;
 
     // ? Initialize state update arrays
     let (local note_updates: Note*) = alloc();
@@ -130,14 +131,10 @@ func main{
 
     // * EXECUTE TRANSACTION BATCH ================================================
 
-    %{
-        import time
-        t1_start = time.time()
-    %}
-
     %{ countsMap = {} %}
     // price_ranges=price_ranges,
     execute_transactions{
+        keccak_ptr=keccak_ptr,
         state_dict=state_dict,
         note_updates=note_updates,
         fee_tracker_dict=fee_tracker_dict,
@@ -153,21 +150,22 @@ func main{
 
     // * Squash dictionaries =============================================================================
 
-    let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
-    %{
-        prev_values = {}
-        for i in range(ids.dict_len):
-            idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
-            prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
-            new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
+    // let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
+    // %{
+    //     prev_values = {}
+    //     for i in range(ids.dict_len):
+    //         idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
+    //         prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
+    //         new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
 
+    // if idx in prev_values:
+    //             if prev_values[idx] != prev_val:
+    //                 print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
 
-            if idx in prev_values:
-                if prev_values[idx] != prev_val:
-                    print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
+    // prev_values[idx] = new_val
+    // %}
 
-            prev_values[idx] = new_val
-    %}
+    finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
 
     local squashed_state_dict: DictAccess*;
     %{ ids.squashed_state_dict = segments.add() %}
@@ -180,6 +178,7 @@ func main{
         DictAccess.SIZE;
 
     // %{
+    //     prev_values = {}
     //     for i in range(ids.squashed_state_dict_len):
     //         idx = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +0]
     //         prev_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +1]
@@ -189,7 +188,6 @@ func main{
     // %}
 
     // * VERIFY MERKLE TREE UPDATES ******************************************************
-
     verify_merkle_tree_updates(
         global_config.dex_state.init_state_root,
         global_config.dex_state.final_state_root,
@@ -199,8 +197,6 @@ func main{
     );
 
     // * WRITE STATE UPDATES TO THE PROGRAM OUTPUT ******************************
-
-    // TODO: Must verify that the output lengths are consistent with those defined in dex_state
     %{ stored_indexes = {} %}
     write_state_updates_to_output{
         note_output_ptr=note_output_ptr,
@@ -231,6 +227,8 @@ func execute_transactions{
     range_check_ptr,
     ec_op_ptr: EcOpBuiltin*,
     ecdsa_ptr: SignatureBuiltin*,
+    bitwise_ptr: BitwiseBuiltin*,
+    keccak_ptr: felt*,
     state_dict: DictAccess*,
     note_updates: Note*,
     fee_tracker_dict: DictAccess*,

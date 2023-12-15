@@ -52,7 +52,7 @@ func execute_tab_orders{
         let updated_base_amount = order_tab.base_amount + received_amount - fee_taken;
 
         let updated_tab_hash = hash_order_tab_inner(
-            order_tab.tab_header, updated_base_amount, updated_quote_amount, order_tab.vlp_supply
+            order_tab.tab_header, updated_base_amount, updated_quote_amount
         );
 
         // ? Update the state
@@ -68,7 +68,7 @@ func execute_tab_orders{
         let updated_base_amount = order_tab.base_amount - spent_amount;
 
         let updated_tab_hash = hash_order_tab_inner(
-            order_tab.tab_header, updated_base_amount, updated_quote_amount, order_tab.vlp_supply
+            order_tab.tab_header, updated_base_amount, updated_quote_amount
         );
 
         // ? Update the state

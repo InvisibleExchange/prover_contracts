@@ -122,7 +122,7 @@ func add_new_tab_to_state{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess
     let state_dict = state_dict + DictAccess.SIZE;
 
     %{ leaf_node_types[ids.order_tab.tab_idx] = "order_tab" %}
-    %{ store_output_order_tab(ids.order_tab.address_, ids.order_tab.tab_idx, ids.order_tab.base_amount, ids.order_tab.quote_amount, ids.order_tab.vlp_supply, ids.order_tab.hash ) %}
+    %{ store_output_order_tab(ids.order_tab.address_, ids.order_tab.tab_idx, ids.order_tab.base_amount, ids.order_tab.quote_amount, ids.order_tab.hash ) %}
 
     return ();
 }
@@ -153,7 +153,7 @@ func update_tab_in_state{poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*
     let state_dict = state_dict + DictAccess.SIZE;
 
     %{ leaf_node_types[ids.prev_order_tab.tab_idx] = "order_tab" %}
-    %{ store_output_order_tab(ids.prev_order_tab.address_, ids.prev_order_tab.tab_idx, ids.new_base_amount, ids.new_quote_amount, ids.prev_order_tab.vlp_supply, ids.updated_tab_hash) %}
+    %{ store_output_order_tab(ids.prev_order_tab.address_, ids.prev_order_tab.tab_idx, ids.new_base_amount, ids.new_quote_amount, ids.updated_tab_hash) %}
 
     return ();
 }
