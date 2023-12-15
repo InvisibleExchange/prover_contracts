@@ -1,4 +1,4 @@
-from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, BitwiseBuiltin
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash
 from starkware.cairo.common.math import assert_le, unsigned_div_rem, assert_not_equal
 from starkware.cairo.common.pow import pow
@@ -6,6 +6,8 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.ec import EcPoint
+from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
+from starkware.cairo.common.uint256 import Uint256
 
 from rollup.global_config import price_decimals, token_decimals, GlobalConfig
 
@@ -73,6 +75,47 @@ func _hash_note_inputs{poseidon_ptr: PoseidonBuiltin*}(
 
     return (res,);
 }
+
+// * Solidity Keccak hash
+func hash_notes_array_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
+    notes_len: felt, notes: Note*, arr_len: felt, arr: felt*
+) -> (arr_len: felt, arr: felt*) {
+    alloc_locals;
+    if (notes_len == 0) {
+        return (arr_len, arr);
+    }
+
+    let note_hash = _hash_note_inputs_solidity(notes[0]);
+    assert arr[arr_len] = note_hash;
+
+    return hash_notes_array_solidity(notes_len - 1, &notes[1], arr_len + 1, arr);
+}
+
+// & This function is used to generate a hash of a new note before actually creating the note
+func _hash_note_inputs_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
+    note: Note
+) -> felt {
+    alloc_locals;
+
+    if (note.amount == 0) {
+        return 0;
+    }
+
+    // & H = H({address, token, amount, blinding})
+    let (local arr: felt*) = alloc();
+    assert arr[0] = note.address.x;
+    assert arr[1] = note.token;
+    assert arr[2] = note.amount;
+    assert arr[3] = note.blinding_factor;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(4, arr);
+
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return hash;
+}
+
+// * ================================================================================
 
 func sum_notes(notes_len: felt, notes: Note*, token: felt, sum: felt) -> (sum: felt) {
     alloc_locals;

@@ -18,6 +18,7 @@ struct EscapeOutput {
 
 struct PositionEscapeOutput {
     batched_escape_info: felt,  // escape_value (64 bits) | escape_id (32 bits) | is_valid (8 bits) |
+    recipient: felt,
     escape_message_hash: felt,
     signature_a_r: felt,
     signature_a_s: felt,
@@ -58,6 +59,7 @@ func write_position_escape_response_to_output{
     escape_id: felt,
     escape_message_hash: felt,
     is_valid: felt,
+    recipient: felt,
     escape_value: felt,
     signature_a_r: felt,
     signature_a_s: felt,
@@ -70,6 +72,8 @@ func write_position_escape_response_to_output{
     let batched_escape_info = ((escape_value * 2 ** 32) + escape_id) * 2 ** 8 + is_valid;
 
     let escape_output = position_escape_output_ptr;
+
+    assert escape_output.recipient = recipient;
     assert escape_output.batched_escape_info = batched_escape_info;
     assert escape_output.escape_message_hash = escape_message_hash;
     assert escape_output.signature_a_r = signature_a_r;

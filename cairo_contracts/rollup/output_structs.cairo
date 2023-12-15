@@ -75,13 +75,10 @@ struct PerpPositionOutput {
 
 // Represents the struct of data written to the program output for every newly opened order tab
 struct OrderTabOutput {
-    // & format: | index (64 bits) | base_token (32 bits) | quote_token (32 bits) | max_vlp_supply (64 bits) | is_smart_contract (1 bits)
-    // & format: | quote_hidden_amount (64 bits) | quote_hidden_amount (64 bits) | vlp_supply_hidden_amount (64 bits) | vlp_token (32 bits) |
-    batched_tab_info_slot1: felt,
-    batched_tab_info_slot2: felt,
+    // & format: | index (59 bits) | base_token (32 bits) | quote_token (32 bits) | quote_hidden_amount (64 bits) | quote_hidden_amount (64 bits)
+    batched_tab_info_slot: felt,
     base_commitment: felt,
     quote_commitment: felt,
-    vlp_supply_commitment: felt,
     public_key: felt,
 }
 
@@ -616,50 +613,24 @@ func _write_order_tab_info_to_output{
     let (base_hidden_amount: felt) = bitwise_xor(order_tab.base_amount, base_trimed_blinding);
     let (quote_trimed_blinding: felt) = bitwise_and(tab_header.quote_blinding, BIT_64_AMOUNT);
     let (quote_hidden_amount: felt) = bitwise_xor(order_tab.quote_amount, quote_trimed_blinding);
-    let (vlp_trimed_blinding: felt) = bitwise_and(blinding_sum, BIT_64_AMOUNT);
-    let (vlp_supply_hidden_amount: felt) = bitwise_xor(order_tab.vlp_supply, vlp_trimed_blinding);
 
-    // & format: | index (64 bits) | base_token (32 bits) | quote_token (32 bits) | max_vlp_supply (64 bits) | is_smart_contract (1 bits)
+    // & format: | index (59 bits) | base_token (32 bits) | quote_token (32 bits) | base_hidden_amount (64 bits) | quote_hidden_amount (64 bits)
     let batched_info1 = (
         ((index * 2 ** 32 + tab_header.base_token) * 2 ** 32 + tab_header.quote_token) * 2 ** 64 +
-        tab_header.max_vlp_supply
-    ) * 2 + tab_header.is_smart_contract;
-    assert output.batched_tab_info_slot1 = batched_info1;
-
-    // & format: | base_hidden_amount (64 bits) | quote_hidden_amount (64 bits) | vlp_supply_hidden_amount (64 bits) | vlp_token (32 bits) |
-    let batched_info2 = (
-        (base_hidden_amount * 2 ** 64 + quote_hidden_amount) * 2 ** 64 + vlp_supply_hidden_amount
-    ) * 2 ** 32 + tab_header.vlp_token;
-    assert output.batched_tab_info_slot2 = batched_info2;
+        base_hidden_amount
+    ) * 2 ** 64 + quote_hidden_amount;
+    assert output.batched_tab_info_slot = batched_info1;
 
     let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);
     let (quote_commitment: felt) = poseidon_hash(order_tab.quote_amount, tab_header.quote_blinding);
-    let vlp_supply_commitment: felt = _get_vlp_supply_commitment(
-        order_tab.vlp_supply, blinding_sum
-    );
 
     assert output.base_commitment = base_commitment;
     assert output.quote_commitment = quote_commitment;
-    assert output.vlp_supply_commitment = vlp_supply_commitment;
     assert output.public_key = tab_header.pub_key;
 
     let tab_output_ptr = tab_output_ptr + OrderTabOutput.SIZE;
 
     return ();
-}
-
-func _get_vlp_supply_commitment{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
-    vlp_supply: felt, blinding_sum: felt
-) -> felt {
-    alloc_locals;
-
-    if (vlp_supply == 0) {
-        return 0;
-    } else {
-        let (vlp_supply_commitment: felt) = poseidon_hash(vlp_supply, blinding_sum);
-
-        return vlp_supply_commitment;
-    }
 }
 
 // * Empty Outputs * //

@@ -1,4 +1,4 @@
-from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin, BitwiseBuiltin
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.pow import pow
 from starkware.cairo.common.alloc import alloc
@@ -7,7 +7,8 @@ from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.ec import EcPoint
 from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.math_cmp import is_le
-
+from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
+from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.bool import TRUE, FALSE
 
 from perpetuals.order.perp_position import (
@@ -40,14 +41,12 @@ from helpers.utils import (
     sum_notes,
     take_fee,
     get_collateral_amount,
+    hash_notes_array_solidity,
+    _hash_note_inputs_solidity,
 )
 from helpers.signatures import is_signature_valid, sum_pub_keys
 
-from forced_escapes.escape_helpers import (
-    write_position_escape_response_to_output,
-    prove_invalid_leaf,
-    PositionEscapeOutput,
-)
+from forced_escapes.escape_helpers import prove_invalid_leaf, PositionEscapeOutput
 
 struct PositionEscape {
     escape_id: felt,
@@ -256,41 +255,113 @@ func close_user_position{
 }
 
 // * --------------------
-func _hash_position_escape_message_open{poseidon_ptr: PoseidonBuiltin*}(
-    escape_id: felt, position_a: PerpPosition, close_price: felt, open_order_fields: OpenOrderFields
+func _hash_position_escape_message_open{
+    range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*
+}(
+    escape_id: felt,
+    position_a: PerpPosition,
+    close_price: felt,
+    open_order_fields: OpenOrderFields,
+    recipient: felt,
 ) -> (res: felt) {
     alloc_locals;
 
-    let (fields_hash: felt) = _hash_open_order_fields(open_order_fields);
+    let fields_hash: felt = _hash_open_order_fields_solidity(open_order_fields);
 
     let (local arr: felt*) = alloc();
     assert arr[0] = escape_id;
-    assert arr[1] = position_a.hash;
+    let position_a_hash = _hash_position_solidity(position_a);
+    assert arr[1] = position_a_hash;
     assert arr[2] = close_price;
     assert arr[3] = fields_hash;
+    assert arr[4] = recipient;
 
-    let (res) = poseidon_hash_many(4, arr);
+    let (res: Uint256) = cairo_keccak_felts_bigend(5, arr);
 
-    return (res,);
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return (hash,);
 }
 
-func _hash_position_escape_message_close{poseidon_ptr: PoseidonBuiltin*}(
-    escape_id: felt, position_a: PerpPosition, close_price: felt, position_b: PerpPosition
+func _hash_position_escape_message_close{
+    range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*
+}(
+    escape_id: felt,
+    position_a: PerpPosition,
+    close_price: felt,
+    position_b: PerpPosition,
+    recipient: felt,
 ) -> (res: felt) {
     alloc_locals;
 
     let (local arr: felt*) = alloc();
     assert arr[0] = escape_id;
-    assert arr[1] = position_a.hash;
+    let position_a_hash = _hash_position_solidity(position_a);
+    assert arr[1] = position_a_hash;
     assert arr[2] = close_price;
-    assert arr[3] = position_b.hash;
+    let position_b_hash = _hash_position_solidity(position_b);
+    assert arr[3] = position_b_hash;
+    assert arr[4] = recipient;
 
-    let (res) = poseidon_hash_many(4, arr);
+    let (res: Uint256) = cairo_keccak_felts_bigend(5, arr);
 
-    return (res,);
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return (hash,);
 }
 
-// * --------------------
+func _hash_position_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
+    position: PerpPosition
+) -> felt {
+    alloc_locals;
+
+    // & hash = H({allow_partial_liquidations, synthetic_token, position_address, vlp_token, max_vlp_supply,
+    // &           order_side, position_size, entry_price, liquidation_price, last_funding_idx, vlp_supply})
+    let (local input_arr: felt*) = alloc();
+    assert input_arr[0] = position.position_header.allow_partial_liquidations;
+    assert input_arr[1] = position.position_header.synthetic_token;
+    assert input_arr[2] = position.position_header.position_address;
+    assert input_arr[3] = position.position_header.vlp_token;
+    assert input_arr[4] = position.position_header.max_vlp_supply;
+    assert input_arr[5] = position.order_side;
+    assert input_arr[6] = position.position_size;
+    assert input_arr[7] = position.entry_price;
+    assert input_arr[8] = position.liquidation_price;
+    assert input_arr[9] = position.last_funding_idx;
+    assert input_arr[10] = position.vlp_supply;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(11, input_arr);
+
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return hash;
+}
+
+func _hash_open_order_fields_solidity{
+    range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*
+}(open_order_fields: OpenOrderFields) -> felt {
+    alloc_locals;
+
+    // & H = (note_hashes, refund_note_hash, initial_margin, collateral_token, position_address, allow_partial_liquidations)
+    let (local empty_arr: felt*) = alloc();
+    let (hashes_arr_len: felt, hashes_arr: felt*) = hash_notes_array_solidity(
+        open_order_fields.notes_in_len, open_order_fields.notes_in, 0, empty_arr
+    );
+    let refund_note_hash = _hash_note_inputs_solidity(open_order_fields.refund_note);
+    assert hashes_arr[hashes_arr_len] = refund_note_hash;
+    assert hashes_arr[hashes_arr_len + 1] = open_order_fields.initial_margin;
+    assert hashes_arr[hashes_arr_len + 2] = open_order_fields.collateral_token;
+    assert hashes_arr[hashes_arr_len + 3] = open_order_fields.position_address;
+    assert hashes_arr[hashes_arr_len + 4] = open_order_fields.allow_partial_liquidations;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(hashes_arr_len + 5, hashes_arr);
+
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return hash;
+}
+
+// * -------------------- ------------------------- ---------------------- -----------------------
 func update_state_after_open_swap{
     poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
 }(position_a: PerpPosition, open_order_fields: OpenOrderFields, new_position_b: PerpPosition) {

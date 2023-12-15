@@ -111,14 +111,13 @@ func close_order_tab{
 
         return ();
     } else {
-        // ? Decrease the position size
 
         // ? Update the order tab
         let updated_base_amount = order_tab.base_amount - base_amount_change;
         let updated_quote_amount = order_tab.quote_amount - quote_amount_change;
 
         let updated_tab_hash = hash_order_tab_inner(
-            order_tab.tab_header, updated_base_amount, updated_quote_amount, order_tab.vlp_supply
+            order_tab.tab_header, updated_base_amount, updated_quote_amount
         );
 
         // ? Update the tab dict
@@ -136,17 +135,13 @@ func handle_order_tab_input{poseidon_ptr: PoseidonBuiltin*}(order_tab: OrderTab*
         memory[order_tab_addr + ids.OrderTab.tab_idx] = int(order_tab_input["tab_idx"])
         memory[order_tab_addr + ids.OrderTab.base_amount] = int(order_tab_input["base_amount"])
         memory[order_tab_addr + ids.OrderTab.quote_amount] = int(order_tab_input["quote_amount"])
-        memory[order_tab_addr + ids.OrderTab.vlp_supply] = int(order_tab_input["vlp_supply"])
         memory[order_tab_addr + ids.OrderTab.hash] = int(order_tab_input["hash"])
 
         tab_header = order_tab_input["tab_header"]
-        memory[tab_header_addr + ids.TabHeader.is_smart_contract] = int(tab_header["is_smart_contract"])
         memory[tab_header_addr + ids.TabHeader.base_token] = int(tab_header["base_token"])
         memory[tab_header_addr +  ids.TabHeader.quote_token] = int(tab_header["quote_token"])
         memory[tab_header_addr + ids.TabHeader.base_blinding] = int(tab_header["base_blinding"])
         memory[tab_header_addr + ids.TabHeader.quote_blinding] = int(tab_header["quote_blinding"])
-        memory[tab_header_addr + ids.TabHeader.vlp_token] = int(tab_header["vlp_token"])
-        memory[tab_header_addr + ids.TabHeader.max_vlp_supply] = int(tab_header["max_vlp_supply"])
         memory[tab_header_addr + ids.TabHeader.pub_key] = int(tab_header["pub_key"])
         memory[tab_header_addr + ids.TabHeader.hash] = int(tab_header["hash"])
     %}

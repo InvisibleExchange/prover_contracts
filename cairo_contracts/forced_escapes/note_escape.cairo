@@ -1,13 +1,15 @@
-from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin, BitwiseBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.ec import EcPoint
+from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.math import assert_not_equal
+from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
 from starkware.cairo.common.bool import TRUE, FALSE
 
-from helpers.utils import Note, hash_notes_array, verify_note_hashes
+from helpers.utils import Note, hash_notes_array_solidity, verify_note_hashes
 from helpers.signatures import is_signature_valid, sum_pub_keys
 from helpers.spot_helpers.dict_updates import _update_multi_inner
 
@@ -29,6 +31,8 @@ func execute_forced_note_escape{
     poseidon_ptr: PoseidonBuiltin*,
     ec_op_ptr: EcOpBuiltin*,
     range_check_ptr,
+    keccak_ptr: felt*,
+    bitwise_ptr: BitwiseBuiltin*,
     state_dict: DictAccess*,
     escape_output_ptr: EscapeOutput*,
     note_updates: Note*,
@@ -110,7 +114,7 @@ func execute_forced_note_escape{
 }
 
 // * --------------------
-func _hash_note_escape_message{poseidon_ptr: PoseidonBuiltin*}(
+func _hash_note_escape_message{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
     escape_id: felt, escape_notes_len: felt, escape_notes: Note*
 ) -> (res: felt) {
     alloc_locals;
@@ -118,23 +122,15 @@ func _hash_note_escape_message{poseidon_ptr: PoseidonBuiltin*}(
     let (local empty_arr: felt*) = alloc();
     assert empty_arr[0] = escape_id;
 
-    let (hashes_arr_len: felt, hashes_arr: felt*) = hash_notes_array(
+    let (hashes_arr_len: felt, hashes_arr: felt*) = hash_notes_array_solidity(
         escape_notes_len, escape_notes, 1, empty_arr
     );
 
-    let (res) = poseidon_hash_many(hashes_arr_len, hashes_arr);
+    let (res: Uint256) = cairo_keccak_felts_bigend(hashes_arr_len, hashes_arr);
 
-    return (res,);
+    let hash = res.high * 2 ** 128 + res.low;
 
-    // let hash_ptr = pedersen_ptr;
-    // with hash_ptr {
-    //     let (hash_state_ptr) = hash_init();
-    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, escape_id);
-    //     let (hash_state_ptr) = hash_update(hash_state_ptr, hashes_arr, hashes_arr_len);
-    //     let (res) = hash_finalize(hash_state_ptr);
-    //     let pedersen_ptr = hash_ptr;
-    //     return (res=res);
-    // }
+    return (hash,);
 }
 
 // * --------------------

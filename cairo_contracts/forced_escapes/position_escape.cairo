@@ -1,11 +1,12 @@
-from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin, BitwiseBuiltin
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.pow import pow
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.ec import EcPoint
 from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.math_cmp import is_le
-
+from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
+from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.bool import TRUE, FALSE
 
 from perpetuals.order.perp_position import (
@@ -74,6 +75,8 @@ func execute_forced_position_escape{
     poseidon_ptr: PoseidonBuiltin*,
     ec_op_ptr: EcOpBuiltin*,
     range_check_ptr,
+    keccak_ptr: felt*,
+    bitwise_ptr: BitwiseBuiltin*,
     state_dict: DictAccess*,
     global_config: GlobalConfig*,
     funding_info: FundingInfo*,
@@ -89,11 +92,13 @@ func execute_forced_position_escape{
     local escape_id: felt;
     local close_price: felt;
     local index_price: felt;
+    local recipient: felt;
     %{
         position_escape = current_transaction["position_escape"]
         ids.escape_id = int(position_escape["escape_id"])
         ids.close_price = int(position_escape["close_price"])
         ids.index_price = int(position_escape["index_price"]) 
+        ids.recipient = int(position_escape["recipient"])
 
         prev_position = position_escape["position_a"]
     %}
@@ -112,7 +117,7 @@ func execute_forced_position_escape{
         get_open_order_fields(&open_order_fields_b);
 
         let (escape_message_hash: felt) = _hash_position_escape_message_open(
-            escape_id, position_a, close_price, open_order_fields_b
+            escape_id, position_a, close_price, open_order_fields_b, recipient
         );
 
         let is_token_valid = verify_synthetic_token(position_a.position_header.synthetic_token);
@@ -124,6 +129,7 @@ func execute_forced_position_escape{
             write_position_escape_response_to_output(
                 escape_id,
                 escape_message_hash,
+                recipient,
                 FALSE,
                 0,
                 signature_a_r,
@@ -141,6 +147,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -175,6 +182,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -194,6 +202,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -216,6 +225,7 @@ func execute_forced_position_escape{
             escape_id,
             escape_message_hash,
             TRUE,
+            recipient,
             collateral_returned,
             signature_a_r,
             signature_a_s,
@@ -235,7 +245,7 @@ func execute_forced_position_escape{
         let is_token_valid = verify_synthetic_token(position_a.position_header.synthetic_token);
 
         let (escape_message_hash: felt) = _hash_position_escape_message_close(
-            escape_id, position_a, close_price, position_b
+            escape_id, position_a, close_price, position_b, recipient
         );
 
         let (
@@ -246,6 +256,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -262,6 +273,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -283,6 +295,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -300,6 +313,7 @@ func execute_forced_position_escape{
                 escape_id,
                 escape_message_hash,
                 FALSE,
+                recipient,
                 0,
                 signature_a_r,
                 signature_a_s,
@@ -318,6 +332,7 @@ func execute_forced_position_escape{
             escape_id,
             escape_message_hash,
             TRUE,
+            recipient,
             collateral_returned,
             signature_a_r,
             signature_a_s,

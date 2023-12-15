@@ -1,10 +1,13 @@
-from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin
+from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, EcOpBuiltin, BitwiseBuiltin
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash
 from starkware.cairo.common.ec import EcPoint
+from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math import assert_not_equal
 from starkware.cairo.common.bool import TRUE, FALSE
+from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
+from starkware.cairo.common.uint256 import Uint256
 
 from helpers.utils import Note, hash_notes_array, verify_note_hashes
 from helpers.signatures import is_signature_valid, sum_pub_keys
@@ -25,6 +28,8 @@ func execute_forced_tab_escape{
     poseidon_ptr: PoseidonBuiltin*,
     ec_op_ptr: EcOpBuiltin*,
     range_check_ptr,
+    keccak_ptr: felt*,
+    bitwise_ptr: BitwiseBuiltin*,
     state_dict: DictAccess*,
     escape_output_ptr: EscapeOutput*,
     note_updates: Note*,
@@ -46,7 +51,7 @@ func execute_forced_tab_escape{
 
     verify_order_tab_hash(order_tab);
 
-    let (escape_message_hash: felt) = _hash_tab_escape_message(escape_id, order_tab.hash);
+    let (escape_message_hash: felt) = _hash_tab_escape_message(escape_id, order_tab);
 
     local signature_r: felt;
     local signature_s: felt;
@@ -94,12 +99,40 @@ func execute_forced_tab_escape{
 }
 
 // * --------------------
-func _hash_tab_escape_message{poseidon_ptr: PoseidonBuiltin*}(escape_id: felt, tab_hash: felt) -> (
-    res: felt
-) {
+func _hash_tab_escape_message{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
+    escape_id: felt, order_tab: OrderTab
+) -> (res: felt) {
     alloc_locals;
 
-    let (message_hash: felt) = poseidon_hash(tab_hash, escape_id);
+    let (local input_arr: felt*) = alloc();
 
-    return (message_hash,);
+    let tab_hash_solidity = _hash_tab_solidity(order_tab);
+    assert input_arr[0] = tab_hash_solidity;
+    assert input_arr[1] = escape_id;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
+
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return (hash,);
+}
+
+func _hash_tab_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
+    order_tab: OrderTab
+) -> felt {
+    alloc_locals;
+
+    // & H({base_token, quote_token, pub_key, base_amount, quote_amount})
+    let (local input_arr: felt*) = alloc();
+    assert input_arr[0] = order_tab.tab_header.base_token;
+    assert input_arr[1] = order_tab.tab_header.quote_token;
+    assert input_arr[2] = order_tab.tab_header.pub_key;
+    assert input_arr[3] = order_tab.base_amount;
+    assert input_arr[4] = order_tab.quote_amount;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(5, input_arr);
+
+    let hash = res.high * 2 ** 128 + res.low;
+
+    return hash;
 }
