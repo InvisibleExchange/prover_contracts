@@ -101,7 +101,6 @@ func add_margin_to_position_internal{
     added_size: felt,
     added_leverage: felt,
     fee_taken: felt,
-    funding_idx: felt,
 ) -> (position: PerpPosition) {
     alloc_locals;
 
@@ -129,10 +128,12 @@ func add_margin_to_position_internal{
         prev_nominal + added_nominal, position.position_size + added_size
     );
 
-    // # & apply funding
-    let (margin_after_funding) = apply_funding(position, funding_idx);
+    // TODO: Should we apply funding?
+    // let (margin_after_funding) = apply_funding(position, funding_idx);
+    // let margin = margin_after_funding + added_margin;
 
-    let margin = margin_after_funding + added_margin;
+    let margin = position.margin + added_margin;
+
     let updated_size = position.position_size + added_size;
 
     let (bankruptcy_price, liquidation_price, new_position_hash) = update_position_info(
@@ -142,7 +143,7 @@ func add_margin_to_position_internal{
         updated_size,
         margin,
         average_entry_price,
-        funding_idx,
+        position.last_funding_idx,
         position.position_header.allow_partial_liquidations,
         position.vlp_supply,
     );
@@ -155,7 +156,7 @@ func add_margin_to_position_internal{
         average_entry_price,
         liquidation_price,
         bankruptcy_price,
-        funding_idx,
+        position.last_funding_idx,
         position.vlp_supply,
         position.index,
         new_position_hash,
@@ -290,32 +291,6 @@ func reduce_position_size_internal{
         position.vlp_supply,
     );
 
-    // let (bankruptcy_price: felt) = _get_bankruptcy_price(
-    //     position.entry_price,
-    //     updated_margin,
-    //     new_size,
-    //     position.order_side,
-    //     position.position_header.synthetic_token,
-    // );
-    // let (liquidation_price: felt) = _get_liquidation_price(
-    //     position.entry_price,
-    //     new_size,
-    //     updated_margin,
-    //     position.order_side,
-    //     position.position_header.synthetic_token,
-    //     position.position_header.allow_partial_liquidations,
-    // );
-
-    // let (new_position_hash: felt) = _hash_position_internal(
-    //     position.position_header.hash,
-    //     position.order_side,
-    //     new_size,
-    //     position.entry_price,
-    //     liquidation_price,
-    //     funding_idx,
-    //     position.vlp_supply,
-    // );
-
     let new_position = PerpPosition(
         position.position_header,
         position.order_side,
@@ -371,28 +346,6 @@ func flip_position_side_internal{
         position.position_header.allow_partial_liquidations,
         position.vlp_supply,
     );
-
-    // let (bankruptcy_price: felt) = _get_bankruptcy_price(
-    //     price, updated_margin, new_size, new_order_side, position.position_header.synthetic_token
-    // );
-    // let (liquidation_price: felt) = _get_liquidation_price(
-    //     price,
-    //     new_size,
-    //     updated_margin,
-    //     new_order_side,
-    //     position.position_header.synthetic_token,
-    //     position.position_header.allow_partial_liquidations,
-    // );
-
-    // let (new_position_hash: felt) = _hash_position_internal(
-    //     position.position_header.hash,
-    //     new_order_side,
-    //     new_size,
-    //     price,
-    //     liquidation_price,
-    //     funding_idx,
-    //     position.vlp_supply,
-    // );
 
     let new_position = PerpPosition(
         position.position_header,

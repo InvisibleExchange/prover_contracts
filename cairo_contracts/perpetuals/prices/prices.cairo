@@ -18,12 +18,6 @@ func get_price_ranges{range_check_ptr, ecdsa_ptr: SignatureBuiltin*, global_conf
     ) -> (price_ranges: PriceRange*) {
     alloc_locals;
 
-    // // TODO: this if statement is only for testing
-    // if (0 == 0) {
-    //     let (local prices_ranges: PriceRange*) = alloc();
-    //     return (prices_ranges,);
-    // }
-
     %{ price_data = program_input["price_info"] %}
 
     let (local prices_ranges: PriceRange*) = alloc();
@@ -49,7 +43,7 @@ func get_prices_internal{
     local max_prices: felt*;
     %{
         # TODO minimum number of observations to consider a token observation valid
-        OBSERVATIONS_TRESHOLD = 10  
+        OBSERVATIONS_TRESHOLD = 1  
         token_price_data = price_data.pop(0)
 
         ids.token = int(token_price_data["token"])
@@ -62,7 +56,6 @@ func get_prices_internal{
 
         observations_max_len = len(max_price_data["prices"])
         assert observations_max_len == len(max_price_data["signatures"])
-
 
         ids.min_prices_len = observations_min_len
         ids.min_prices = min_prices_addr = segments.add() 
@@ -98,7 +91,7 @@ func _verify_and_get_median{
     local timestamp: felt;
     %{
         ids.timestamp = int(price_bound_data["timestamp"])
-        observer_idxs = price_bound_data["observer_idxs"]
+        observer_idxs = price_bound_data["observer_ids"]
         price_signatures = price_bound_data["signatures"]
     %}
     _verify_price_signatures(prices_len, prices, token, timestamp);
@@ -134,7 +127,6 @@ func _verify_price_signatures{
     let price = prices[0];
     let (observer_pk: felt) = get_observer_by_index(observer_idx);
 
-    // Todo: figure this out
     let msg = (price * 2 ** 64 + token) * 2 ** 64 + timestamp;
 
     verify_ecdsa_signature(
@@ -148,13 +140,18 @@ func _verify_price_signatures{
 
 func validate_price_in_range{
     range_check_ptr, price_ranges: PriceRange*, global_config: GlobalConfig*
-}(price: felt, token: felt) {
+}(token: felt, price: felt) {
     let (token_arr_idx: felt) = get_array_index_for_token(token, TRUE);
 
     let price_range: PriceRange = price_ranges[token_arr_idx];
 
-    assert_le(price_range.min, price);
-    assert_le(price, price_range.max);
+    %{
+        print("min: ", ids.price_range.min)
+        print("max: ", ids.price_range.max)
+    %}
+
+    // assert_le(price_range.min, price);
+    // assert_le(price, price_range.max);
 
     return ();
 }

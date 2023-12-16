@@ -342,14 +342,6 @@ func execute_close_order{
         index,
     );
 
-    // cairo: 'amount': 15809,663.511,
-    // json_: "amount": 15809,661.456,
-
-    %{
-        if ids.index == 148:
-            print_note(ids.return_collateral_note.address_)
-    %}
-
     update_rc_state_dict(return_collateral_note);
 
     return ();
@@ -415,12 +407,14 @@ func add_margin_to_position{
 
     assert position.order_side = order.order_side;
 
-    local funding_idx: felt;
-    %{ ids.funding_idx = order_indexes["new_funding_idx"] %}
-
     let (position: PerpPosition) = add_margin_to_position_internal(
-        position, init_margin, added_size, leverage, fee_taken, funding_idx
+        position, init_margin, added_size, leverage, fee_taken
     );
+
+    %{
+        if ids.position.hash == 598345844227516041230339568462156132804121144810609493676183821408345703711:
+            print_position(ids.position.address_)
+    %}
 
     return (prev_position_hash, position);
 }

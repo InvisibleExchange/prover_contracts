@@ -1,6 +1,8 @@
 from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
-from starkware.cairo.common.math import signed_div_rem
+from starkware.cairo.common.math import unsigned_div_rem, abs_value, sign
+from starkware.cairo.common.math_cmp import is_nn
 from starkware.cairo.common.pow import pow
+from starkware.cairo.common.bool import TRUE
 
 from helpers.utils import Note, hash_notes_array, get_price
 from rollup.global_config import token_decimals, price_decimals, GlobalConfig
@@ -28,7 +30,9 @@ func apply_funding{range_check_ptr, funding_info: FundingInfo*, global_config: G
     let (synthetic_decimals: felt) = token_decimals(position.position_header.synthetic_token);
     let (synthetic_price_decimals: felt) = price_decimals(position.position_header.synthetic_token);
 
-    tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals - 6;
+    let (collateral_decimals) = token_decimals(global_config.collateral_token);
+    tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals -
+        collateral_decimals;
     let (multiplier: felt) = pow(10, decimal_conversion);
 
     let (
@@ -68,27 +72,81 @@ func get_margin_after_funding{range_check_ptr}(
         return (margin,);
     }
 
-    let (bound: felt) = pow(2, 64);
-
-    // funding rate has 5 decimal places
-    let funding_rate = funding_rates[0];
-    let (funding: felt, _) = signed_div_rem(size * funding_rate, 100000, bound);
-
-    let (funding_payment_margin: felt, _) = signed_div_rem(funding * prices[0], multiplier, bound);
-
-    let margin_after_funding = margin - funding_payment_margin + 2 * funding_payment_margin *
-        order_side;
-
-    return get_margin_after_funding(
-        size,
-        margin_after_funding,
-        multiplier,
-        order_side,
-        funding_rates_len - 1,
-        &funding_rates[1],
-        prices_len - 1,
-        &prices[1],
+    // ? Get sum(funding_rates * prices)
+    let (funding_sum: felt) = get_funding_sum(
+        funding_rates_len, funding_rates, prices_len, prices, 0
     );
+
+    let s = sign(funding_sum);
+
+    if (s != -1) {
+        // ? If funding is positive, then longs pay shorts
+
+        let funding_rate = funding_sum;
+
+        let (funding_sum_usd: felt, _) = unsigned_div_rem(size * funding_rate, multiplier);
+
+        if (order_side == 1) {
+            // ? If order is long, then longs pay shorts, so margin decreases
+            let margin_after_funding = margin - funding_sum_usd;
+            return (margin_after_funding,);
+        } else {
+            // ? If order is short, then shorts pay longs, so margin increases
+            let margin_after_funding = margin + funding_sum_usd;
+
+            return (margin_after_funding,);
+        }
+    } else {
+        // ? If funding is negative, then shorts pay longs
+
+        let funding_rate = -funding_sum;
+
+        let (funding_sum_usd: felt, _) = unsigned_div_rem(size * funding_rate, multiplier);
+
+        if (order_side == 1) {
+            // ? If order is long, then shorts pay longs, so margin increases
+            let margin_after_funding = margin + funding_sum_usd;
+
+            return (margin_after_funding,);
+        } else {
+            // ? If order is short, then shorts pay longs, so margin decreases
+            let margin_after_funding = margin - funding_sum_usd;
+
+            return (margin_after_funding,);
+        }
+    }
+}
+
+func get_funding_sum{range_check_ptr}(
+    funding_rates_len: felt, funding_rates: felt*, prices_len: felt, prices: felt*, sum: felt
+) -> (funding_sum: felt) {
+    if (funding_rates_len == 0) {
+        return (sum,);
+    }
+
+    let s = sign(funding_rates[0]);
+
+    if (s == -1) {
+        let funding_ = (-funding_rates[0]) * prices[0];
+
+        let (funding, _) = unsigned_div_rem(funding_, 100000);
+
+        let sum = sum - funding;
+
+        return get_funding_sum(
+            funding_rates_len - 1, &funding_rates[1], prices_len - 1, &prices[1], sum
+        );
+    } else {
+        let funding_ = funding_rates[0] * prices[0];
+
+        let (funding, _) = unsigned_div_rem(funding_, 100000);
+
+        let sum = sum + funding;
+
+        return get_funding_sum(
+            funding_rates_len - 1, &funding_rates[1], prices_len - 1, &prices[1], sum
+        );
+    }
 }
 
 func get_applicable_funding_arrays{funding_info: FundingInfo*}(

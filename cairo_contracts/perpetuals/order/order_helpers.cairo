@@ -157,22 +157,6 @@ func _get_pnl{range_check_ptr, global_config: GlobalConfig*}(
         collateral_decimals;
     let (multiplier: felt) = pow(10, decimal_conversion);
 
-    // let (bound: felt) = pow(2, 64);
-
-    // let delta = entry_price - mark_price + 2 * order_side * mark_price - 2 * order_side *
-    //     entry_price;
-
-    // let is_pnl_positive = is_le(0, delta);
-
-    // if (is_pnl_positive == 1) {
-    //     let (pnl, _) = unsigned_div_rem(delta * position_size, multiplier);
-
-    // return pnl;
-    // } else {
-    //     let (pnl, _) = unsigned_div_rem((-delta) * position_size, multiplier);
-
-    // return -pnl;
-    // }
 
     if (order_side == 1) {
         // & Long position
@@ -214,14 +198,6 @@ func _get_leftover_value{range_check_ptr, global_config: GlobalConfig*}(
 ) -> felt {
     alloc_locals;
 
-    // let (collateral_decimals) = token_decimals(global_config.collateral_token);
-
-    // let (synthetic_decimals: felt) = token_decimals(synthetic_token);
-    // let (synthetic_price_decimals: felt) = price_decimals(synthetic_token);
-
-    // tempvar decimal_conversion = synthetic_decimals + synthetic_price_decimals -
-    //     collateral_decimals;
-    // let (multiplier: felt) = pow(10, decimal_conversion);
 
     let (p1: felt, _) = unsigned_div_rem(position_size * close_price, multiplier);
     let (p2: felt, _) = unsigned_div_rem(position_size * bankruptcy_price, multiplier);

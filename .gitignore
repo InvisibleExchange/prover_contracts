@@ -51,6 +51,9 @@ relay_server/src/orderBooks.db
 relay_server/src/.env
 
 
+cairo_contracts/transaction_batch/tx_batch_input.json
+cairo_contracts/transaction_batch/tx_batch_compiled.json
+
 
 deprecated
 

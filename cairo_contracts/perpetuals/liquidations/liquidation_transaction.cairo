@@ -47,6 +47,7 @@ func execute_liquidation_order{
     note_updates: Note*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
+    price_ranges: PriceRange*,
 }() {
     alloc_locals;
 
@@ -82,7 +83,7 @@ func execute_liquidation_order{
     liquidation_consistency_checks(liquidation_order, position, open_order_fields, market_price);
 
     // ? validate index price in range
-    // TODO: validate_price_in_range(index_price, position.position_header.synthetic_token);
+    validate_price_in_range(position.position_header.synthetic_token, index_price);
 
     // ? Check the position is liquidatable
     let (is_liquidatable: felt) = is_position_liquidatable(position, index_price);

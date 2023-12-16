@@ -127,12 +127,11 @@ func main{
     set_funding_info(funding_info);
 
     // todo: Use this to verify liquidation prices
-    // let (price_ranges: PriceRange*) = get_price_ranges{global_config=global_config}();
+    let (price_ranges: PriceRange*) = get_price_ranges{global_config=global_config}();
 
     // * EXECUTE TRANSACTION BATCH ================================================
 
     %{ countsMap = {} %}
-    // price_ranges=price_ranges,
     execute_transactions{
         keccak_ptr=keccak_ptr,
         state_dict=state_dict,
@@ -145,6 +144,7 @@ func main{
         position_escape_output_ptr=position_escape_output_ptr,
         funding_info=funding_info,
         global_config=global_config,
+        price_ranges=price_ranges,
     }();
     %{ print("\ncountsMap: ", countsMap) %}
 
@@ -158,9 +158,8 @@ func main{
     //         prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
     //         new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
 
-    // if idx in prev_values:
-    //             if prev_values[idx] != prev_val:
-    //                 print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
+    // if idx in prev_values and prev_values[idx] != prev_val:
+    //             print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
 
     // prev_values[idx] = new_val
     // %}
@@ -239,6 +238,7 @@ func execute_transactions{
     position_escape_output_ptr: PositionEscapeOutput*,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
+    price_ranges: PriceRange*,
 }() {
     alloc_locals;
 

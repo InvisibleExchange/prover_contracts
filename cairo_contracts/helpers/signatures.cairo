@@ -274,3 +274,4 @@ func sum_pub_keys(notes_len: felt, notes: Note*, pub_key_sum: EcPoint) -> (pk_su
 
     return sum_pub_keys(notes_len - 1, &notes[1], pub_key_sum);
 }
+
