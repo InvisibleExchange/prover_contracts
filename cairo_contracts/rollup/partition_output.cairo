@@ -54,6 +54,7 @@ func partition_output{output_ptr, range_check_ptr, poseidon_ptr: PoseidonBuiltin
         WithdrawalTransactionOutput.SIZE,
         OnChainMMActionOutput*,
     );
+
     // ? Escape Outputs
     local escape_output_ptr: EscapeOutput* = cast(
         onchain_mm_action_output_ptr + global_config.dex_state.n_onchain_mm_actions *

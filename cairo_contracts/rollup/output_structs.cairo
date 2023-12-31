@@ -545,11 +545,12 @@ func _write_new_note_to_output{
     let (trimed_blinding: felt) = bitwise_and(note.blinding_factor, BIT_64_AMOUNT);
     let (hidden_amount: felt) = bitwise_xor(note.amount, trimed_blinding);
 
-    // & batched_note_info format: | token (32 bits) | hidden amount (64 bits) | idx (64 bits) |
-    assert output.batched_note_info = ((note.token * 2 ** 64) + hidden_amount) * 2 ** 64 + index;
-    let (comm: felt) = poseidon_hash(note.amount, note.blinding_factor);
-    assert output.commitment = comm;
-    assert output.address = note.address.x;
+    // TODO:
+    // // & batched_note_info format: | token (32 bits) | hidden amount (64 bits) | idx (64 bits) |
+    // assert output.batched_note_info = ((note.token * 2 ** 64) + hidden_amount) * 2 ** 64 + index;
+    // let (comm: felt) = poseidon_hash(note.amount, note.blinding_factor);
+    // assert output.commitment = comm;
+    // assert output.address = note.address.x;
 
     let note_output_ptr = note_output_ptr + NoteDiffOutput.SIZE;
 
@@ -564,28 +565,28 @@ func _write_position_info_to_output{
 
     let output: PerpPositionOutput* = position_output_ptr;
 
-    // & | index (59 bits) | synthetic_token (32 bits) | position_size (64 bits) | max_vlp_supply (64 bits) | vlp_token (32 bits) |
-    assert output.batched_position_info_slot1 = (
-        (
-            (position.index * 2 ** 32 + position.position_header.synthetic_token) * 2 ** 64 +
-            position.position_size
-        ) * 2 ** 64 +
-        position.position_header.max_vlp_supply
-    ) * 2 ** 32 + position.position_header.vlp_token;
+    // // & | index (59 bits) | synthetic_token (32 bits) | position_size (64 bits) | max_vlp_supply (64 bits) | vlp_token (32 bits) |
+    // assert output.batched_position_info_slot1 = (
+    //     (
+    //         (position.index * 2 ** 32 + position.position_header.synthetic_token) * 2 ** 64 +
+    //         position.position_size
+    //     ) * 2 ** 64 +
+    //     position.position_header.max_vlp_supply
+    // ) * 2 ** 32 + position.position_header.vlp_token;
 
-    // & | entry_price (64 bits) | liquidation_price (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
-    assert output.batched_position_info_slot2 = (
-        (
-            (
-                ((position.entry_price * 2 ** 64) + position.liquidation_price) * 2 ** 64 +
-                position.vlp_supply
-            ) * 2 ** 32 +
-            position.last_funding_idx
-        ) * 2 +
-        position.order_side
-    ) * 2 + position.position_header.allow_partial_liquidations;
+    // // & | entry_price (64 bits) | liquidation_price (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
+    // assert output.batched_position_info_slot2 = (
+    //     (
+    //         (
+    //             ((position.entry_price * 2 ** 64) + position.liquidation_price) * 2 ** 64 +
+    //             position.vlp_supply
+    //         ) * 2 ** 32 +
+    //         position.last_funding_idx
+    //     ) * 2 +
+    //     position.order_side
+    // ) * 2 + position.position_header.allow_partial_liquidations;
 
-    assert output.public_key = position.position_header.position_address;
+    // assert output.public_key = position.position_header.position_address;
 
     let position_output_ptr = position_output_ptr + PerpPositionOutput.SIZE;
 
@@ -619,14 +620,14 @@ func _write_order_tab_info_to_output{
         ((index * 2 ** 32 + tab_header.base_token) * 2 ** 32 + tab_header.quote_token) * 2 ** 64 +
         base_hidden_amount
     ) * 2 ** 64 + quote_hidden_amount;
-    assert output.batched_tab_info_slot = batched_info1;
+    // assert output.batched_tab_info_slot = batched_info1;
 
-    let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);
-    let (quote_commitment: felt) = poseidon_hash(order_tab.quote_amount, tab_header.quote_blinding);
+    // let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);
+    // let (quote_commitment: felt) = poseidon_hash(order_tab.quote_amount, tab_header.quote_blinding);
 
-    assert output.base_commitment = base_commitment;
-    assert output.quote_commitment = quote_commitment;
-    assert output.public_key = tab_header.pub_key;
+    // assert output.base_commitment = base_commitment;
+    // assert output.quote_commitment = quote_commitment;
+    // assert output.public_key = tab_header.pub_key;
 
     let tab_output_ptr = tab_output_ptr + OrderTabOutput.SIZE;
 
@@ -646,7 +647,7 @@ func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_
 
     if (zero_idxs_len == 1) {
         let output: ZeroOutput* = empty_output_ptr;
-        assert output.batched_idxs = zero_idxs[0];
+        // assert output.batched_idxs = zero_idxs[0];
 
         let empty_output_ptr = empty_output_ptr + ZeroOutput.SIZE;
 
@@ -656,7 +657,7 @@ func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_
         let batched_zero_idxs = (zero_idxs[0] * 2 ** 64) + zero_idxs[1];
 
         let output: ZeroOutput* = empty_output_ptr;
-        assert output.batched_idxs = batched_zero_idxs;
+        // assert output.batched_idxs = batched_zero_idxs;
 
         let empty_output_ptr = empty_output_ptr + ZeroOutput.SIZE;
 
@@ -665,7 +666,7 @@ func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_
         let batched_zero_idxs = ((zero_idxs[0] * 2 ** 64) + zero_idxs[1]) * 2 ** 64 + zero_idxs[2];
 
         let output: ZeroOutput* = empty_output_ptr;
-        assert output.batched_idxs = batched_zero_idxs;
+        // assert output.batched_idxs = batched_zero_idxs;
 
         let empty_output_ptr = empty_output_ptr + ZeroOutput.SIZE;
 

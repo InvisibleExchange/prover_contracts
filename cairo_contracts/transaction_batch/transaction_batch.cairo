@@ -213,7 +213,8 @@ func main{
         accumulated_hashes=accumulated_hashes, global_config=global_config
     }(deposit_output_len, deposit_output_ptr_start, withdraw_output_len, withdraw_output_ptr_start);
 
-    local output_ptr: felt = cast(empty_output_ptr, felt);
+    // TODO: local output_ptr: felt = cast(empty_output_ptr, felt);
+    local output_ptr: felt = cast(position_escape_output_ptr, felt);
 
     %{ print("all good") %}
 

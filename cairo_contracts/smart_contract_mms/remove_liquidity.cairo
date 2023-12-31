@@ -38,7 +38,12 @@ func remove_liquidity_from_mm{
     local initial_value: felt;
     local vlp_amount: felt;
     %{
-        ids.depositor = int(current_order["depositor"])
+        depositor_ = current_order["depositor"]
+        if depositor_.startswith("0x"):
+            ids.depositor = int( depositor_[2:], 16)
+        else:
+            ids.depositor = int(depositor_)
+
         ids.initial_value = current_order["initial_value"]
         ids.vlp_amount = current_order["vlp_amount"]
     %}
