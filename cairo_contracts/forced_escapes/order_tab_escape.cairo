@@ -51,7 +51,7 @@ func execute_forced_tab_escape{
 
     verify_order_tab_hash(order_tab);
 
-    let (escape_message_hash: felt) = _hash_tab_escape_message(escape_id, order_tab);
+    let (escape_message_hash: felt) = _hash_tab_escape_message(order_tab);
 
     local signature_r: felt;
     local signature_s: felt;
@@ -100,21 +100,13 @@ func execute_forced_tab_escape{
 
 // * --------------------
 func _hash_tab_escape_message{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
-    escape_id: felt, order_tab: OrderTab
+    order_tab: OrderTab
 ) -> (res: felt) {
     alloc_locals;
 
-    let (local input_arr: felt*) = alloc();
+    let tab_hash = _hash_tab_solidity(order_tab);
 
-    let tab_hash_solidity = _hash_tab_solidity(order_tab);
-    assert input_arr[0] = tab_hash_solidity;
-    assert input_arr[1] = escape_id;
-
-    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
-
-    let hash = res.high * 2 ** 128 + res.low;
-
-    return (hash,);
+    return (tab_hash,);
 }
 
 func _hash_tab_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(

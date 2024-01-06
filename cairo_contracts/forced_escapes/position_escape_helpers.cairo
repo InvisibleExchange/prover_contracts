@@ -5,7 +5,7 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.registers import get_fp_and_pc
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.ec import EcPoint
-from starkware.cairo.common.math import unsigned_div_rem
+from starkware.cairo.common.math import unsigned_div_rem, split_felt
 from starkware.cairo.common.math_cmp import is_le
 from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
 from starkware.cairo.common.uint256 import Uint256
@@ -258,25 +258,21 @@ func close_user_position{
 func _hash_position_escape_message_open{
     range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*
 }(
-    escape_id: felt,
-    position_a: PerpPosition,
-    close_price: felt,
-    open_order_fields: OpenOrderFields,
-    recipient: felt,
+    position_a: PerpPosition, close_price: felt, open_order_fields: OpenOrderFields, recipient: felt
 ) -> (res: felt) {
     alloc_locals;
 
-    let fields_hash: felt = _hash_open_order_fields_solidity(open_order_fields);
-
+    // & H = pedersen(position_a.hash, close_price, open_order_fields_b.hash, recipient)
     let (local arr: felt*) = alloc();
-    assert arr[0] = escape_id;
-    let position_a_hash = _hash_position_solidity(position_a);
-    assert arr[1] = position_a_hash;
-    assert arr[2] = close_price;
-    assert arr[3] = fields_hash;
-    assert arr[4] = recipient;
 
-    let (res: Uint256) = cairo_keccak_felts_bigend(5, arr);
+    let position_a_hash: felt = _hash_position_solidity(position_a);
+    assert arr[0] = position_a_hash;
+    assert arr[1] = close_price;
+    let fields_hash: felt = _hash_open_order_fields_solidity(open_order_fields);
+    assert arr[2] = fields_hash;
+    assert arr[3] = recipient;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(4, arr);
 
     let hash = res.high * 2 ** 128 + res.low;
 
@@ -285,25 +281,22 @@ func _hash_position_escape_message_open{
 
 func _hash_position_escape_message_close{
     range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*
-}(
-    escape_id: felt,
-    position_a: PerpPosition,
-    close_price: felt,
-    position_b: PerpPosition,
-    recipient: felt,
-) -> (res: felt) {
+}(position_a: PerpPosition, close_price: felt, position_b: PerpPosition, recipient: felt) -> (
+    res: felt
+) {
     alloc_locals;
 
+    // & H = pedersen(position_a.hash, close_price, position_b.hash, recipient)
     let (local arr: felt*) = alloc();
-    assert arr[0] = escape_id;
-    let position_a_hash = _hash_position_solidity(position_a);
-    assert arr[1] = position_a_hash;
-    assert arr[2] = close_price;
-    let position_b_hash = _hash_position_solidity(position_b);
-    assert arr[3] = position_b_hash;
-    assert arr[4] = recipient;
 
-    let (res: Uint256) = cairo_keccak_felts_bigend(5, arr);
+    let position_a_hash: felt = _hash_position_solidity(position_a);
+    assert arr[0] = position_a_hash;
+    assert arr[1] = close_price;
+    let position_b_hash: felt = _hash_position_solidity(position_b);
+    assert arr[2] = position_b_hash;
+    assert arr[3] = recipient;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(4, arr);
 
     let hash = res.high * 2 ** 128 + res.low;
 
@@ -347,8 +340,9 @@ func _hash_open_order_fields_solidity{
     let (hashes_arr_len: felt, hashes_arr: felt*) = hash_notes_array_solidity(
         open_order_fields.notes_in_len, open_order_fields.notes_in, 0, empty_arr
     );
-    let refund_note_hash = _hash_note_inputs_solidity(open_order_fields.refund_note);
+    let refund_note_hash: felt = _hash_note_inputs_solidity(open_order_fields.refund_note);
     assert hashes_arr[hashes_arr_len] = refund_note_hash;
+
     assert hashes_arr[hashes_arr_len + 1] = open_order_fields.initial_margin;
     assert hashes_arr[hashes_arr_len + 2] = open_order_fields.collateral_token;
     assert hashes_arr[hashes_arr_len + 3] = open_order_fields.position_address;

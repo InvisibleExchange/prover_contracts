@@ -85,7 +85,7 @@ func hash_notes_array_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: 
         return (arr_len, arr);
     }
 
-    let note_hash = _hash_note_inputs_solidity(notes[0]);
+    let note_hash: felt = _hash_note_inputs_solidity(notes[0]);
     assert arr[arr_len] = note_hash;
 
     return hash_notes_array_solidity(notes_len - 1, &notes[1], arr_len + 1, arr);

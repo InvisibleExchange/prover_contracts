@@ -73,8 +73,8 @@ func write_position_escape_response_to_output{
 
     let escape_output = position_escape_output_ptr;
 
-    assert escape_output.recipient = recipient;
     assert escape_output.batched_escape_info = batched_escape_info;
+    assert escape_output.recipient = recipient;
     assert escape_output.escape_message_hash = escape_message_hash;
     assert escape_output.signature_a_r = signature_a_r;
     assert escape_output.signature_a_s = signature_a_s;

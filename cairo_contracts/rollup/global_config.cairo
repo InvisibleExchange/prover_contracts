@@ -285,7 +285,7 @@ func init_output_structs{poseidon_ptr: PoseidonBuiltin*}(
 
     // & 2:
     // & n_output_notes (32 bits) | n_output_positions (16 bits) | n_output_tabs (16 bits) | n_zero_indexes (32 bits) | n_deposits (16 bits) | n_withdrawals (16 bits) |
-    // & n_onchain_mm_actions (16 bits) | n_note_escapes (16 bits) | n_position_escapes (16 bits) | n_tab_escapes (16 bits) |
+    // & n_onchain_mm_actions (16 bits) | n_note_escapes (16 bits) | n_tab_escapes (16 bits) | n_position_escapes (16 bits) |
     let o1 = (
         ((dex_state.n_output_notes * 2 ** 16) + dex_state.n_output_positions) * 2 ** 16 +
         dex_state.n_output_tabs
@@ -293,8 +293,8 @@ func init_output_structs{poseidon_ptr: PoseidonBuiltin*}(
     let o2 = (((o1 * 2 ** 16) + dex_state.n_deposits) * 2 ** 16 + dex_state.n_withdrawals) * 2 **
         16 + dex_state.n_onchain_mm_actions;
     let batched_info = (
-        ((o2 * 2 ** 16) + dex_state.n_note_escapes) * 2 ** 16 + dex_state.n_position_escapes
-    ) * 2 ** 16 + dex_state.n_tab_escapes;
+        ((o2 * 2 ** 16) + dex_state.n_note_escapes) * 2 ** 16 + dex_state.n_tab_escapes
+    ) * 2 ** 16 + dex_state.n_position_escapes;
 
     assert config_output_ptr[3] = batched_info;
 

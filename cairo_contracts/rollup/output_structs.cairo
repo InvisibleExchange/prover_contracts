@@ -604,22 +604,18 @@ func _write_order_tab_info_to_output{
 
     let output: OrderTabOutput* = tab_output_ptr;
 
-    let tab_header: TabHeader* = &order_tab.tab_header;
+    // let tab_header: TabHeader* = &order_tab.tab_header;
 
-    let (_, base_low) = split_felt(tab_header.base_blinding);
-    let (_, quote_low) = split_felt(tab_header.quote_blinding);
-    let blinding_sum: felt = base_low + quote_low;
+    // let (base_trimed_blinding: felt) = bitwise_and(tab_header.base_blinding, BIT_64_AMOUNT);
+    // let (base_hidden_amount: felt) = bitwise_xor(order_tab.base_amount, base_trimed_blinding);
+    // let (quote_trimed_blinding: felt) = bitwise_and(tab_header.quote_blinding, BIT_64_AMOUNT);
+    // let (quote_hidden_amount: felt) = bitwise_xor(order_tab.quote_amount, quote_trimed_blinding);
 
-    let (base_trimed_blinding: felt) = bitwise_and(tab_header.base_blinding, BIT_64_AMOUNT);
-    let (base_hidden_amount: felt) = bitwise_xor(order_tab.base_amount, base_trimed_blinding);
-    let (quote_trimed_blinding: felt) = bitwise_and(tab_header.quote_blinding, BIT_64_AMOUNT);
-    let (quote_hidden_amount: felt) = bitwise_xor(order_tab.quote_amount, quote_trimed_blinding);
-
-    // & format: | index (59 bits) | base_token (32 bits) | quote_token (32 bits) | base_hidden_amount (64 bits) | quote_hidden_amount (64 bits)
-    let batched_info1 = (
-        ((index * 2 ** 32 + tab_header.base_token) * 2 ** 32 + tab_header.quote_token) * 2 ** 64 +
-        base_hidden_amount
-    ) * 2 ** 64 + quote_hidden_amount;
+    // // & format: | index (59 bits) | base_token (32 bits) | quote_token (32 bits) | base_hidden_amount (64 bits) | quote_hidden_amount (64 bits)
+    // let batched_info1 = (
+    //     ((index * 2 ** 32 + tab_header.base_token) * 2 ** 32 + tab_header.quote_token) * 2 ** 64 +
+    //     base_hidden_amount
+    // ) * 2 ** 64 + quote_hidden_amount;
     // assert output.batched_tab_info_slot = batched_info1;
 
     // let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);

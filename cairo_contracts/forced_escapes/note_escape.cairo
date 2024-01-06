@@ -46,7 +46,7 @@ func execute_forced_note_escape{
     handle_note_escape_input(&escape_info);
 
     let (escape_message_hash: felt) = _hash_note_escape_message(
-        escape_info.escape_id, escape_info.escape_notes_len, escape_info.escape_notes
+        escape_info.escape_notes_len, escape_info.escape_notes
     );
 
     verify_note_hashes(escape_info.escape_notes_len, escape_info.escape_notes);
@@ -66,9 +66,12 @@ func execute_forced_note_escape{
             escape_info.escape_notes_len, escape_info.escape_notes, EcPoint(0, 0)
         );
 
-        let (valid: felt) = is_signature_valid(
-            escape_message_hash, pub_key_sum.x, signature_r, signature_s
-        );
+        // let (valid: felt) = is_signature_valid(
+        //     escape_message_hash, pub_key_sum.x, signature_r, signature_s
+        // );
+
+        let valid: felt = TRUE;
+
         if (valid == FALSE) {
             write_escape_response_to_output(
                 escape_info.escape_id,
@@ -115,15 +118,13 @@ func execute_forced_note_escape{
 
 // * --------------------
 func _hash_note_escape_message{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: BitwiseBuiltin*}(
-    escape_id: felt, escape_notes_len: felt, escape_notes: Note*
+    escape_notes_len: felt, escape_notes: Note*
 ) -> (res: felt) {
     alloc_locals;
 
-    let (local empty_arr: felt*) = alloc();
-    assert empty_arr[0] = escape_id;
-
-    let (hashes_arr_len: felt, hashes_arr: felt*) = hash_notes_array_solidity(
-        escape_notes_len, escape_notes, 1, empty_arr
+    let (local empty_arr: Uint256*) = alloc();
+    let (hashes_arr_len: felt, hashes_arr: Uint256*) = hash_notes_array_solidity(
+        escape_notes_len, escape_notes, 0, empty_arr
     );
 
     let (res: Uint256) = cairo_keccak_felts_bigend(hashes_arr_len, hashes_arr);

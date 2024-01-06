@@ -27,11 +27,6 @@ from perpetuals.funding.funding import FundingInfo
 
 from rollup.global_config import GlobalConfig
 
-from helpers.perp_helpers.dict_updates import (
-    update_state_dict,
-    update_position_state,
-    update_position_state_on_close,
-)
 from helpers.utils import (
     Note,
     verify_note_hashes,
@@ -97,8 +92,13 @@ func execute_forced_position_escape{
         position_escape = current_transaction["position_escape"]
         ids.escape_id = int(position_escape["escape_id"])
         ids.close_price = int(position_escape["close_price"])
-        ids.index_price = int(position_escape["index_price"]) 
-        ids.recipient = int(position_escape["recipient"])
+        ids.index_price = int(position_escape["index_price"])
+
+        recipient_ = position_escape["recipient"]
+        if recipient_.startswith("0x"):
+            ids.recipient = int( recipient_[2:], 16)
+        else:
+            ids.recipient = int(recipient_)
 
         prev_position = position_escape["position_a"]
     %}
@@ -117,7 +117,7 @@ func execute_forced_position_escape{
         get_open_order_fields(&open_order_fields_b);
 
         let (escape_message_hash: felt) = _hash_position_escape_message_open(
-            escape_id, position_a, close_price, open_order_fields_b, recipient
+            position_a, close_price, open_order_fields_b, recipient
         );
 
         let is_token_valid = verify_synthetic_token(position_a.position_header.synthetic_token);
@@ -245,7 +245,7 @@ func execute_forced_position_escape{
         let is_token_valid = verify_synthetic_token(position_a.position_header.synthetic_token);
 
         let (escape_message_hash: felt) = _hash_position_escape_message_close(
-            escape_id, position_a, close_price, position_b, recipient
+            position_a, close_price, position_b, recipient
         );
 
         let (
