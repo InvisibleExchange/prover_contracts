@@ -3,7 +3,6 @@ from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.pow import pow
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash_many
 from starkware.cairo.common.ec import EcPoint
 from starkware.cairo.common.math import unsigned_div_rem, split_felt
 from starkware.cairo.common.math_cmp import is_le

@@ -1,5 +1,5 @@
 from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, BitwiseBuiltin
-from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash
+from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash, poseidon_hash_many
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math import unsigned_div_rem, split_felt
 from starkware.cairo.common.dict_access import DictAccess
@@ -92,37 +92,57 @@ struct ZeroOutput {
 // * STATE * //
 
 func write_state_updates_to_output{
-    poseidon_ptr: PoseidonBuiltin*,
-    range_check_ptr,
-    bitwise_ptr: BitwiseBuiltin*,
-    note_output_ptr: NoteDiffOutput*,
-    position_output_ptr: PerpPositionOutput*,
-    tab_output_ptr: OrderTabOutput*,
-    empty_output_ptr: ZeroOutput*,
-}(state_dict_start: DictAccess*, n_state_outputs: felt, note_outputs: Note*) {
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*
+}(
+    state_dict_start: DictAccess*,
+    n_state_outputs: felt,
+    note_outputs: Note*,
+    n_output_notes: felt,
+    n_output_positions: felt,
+    n_output_tabs: felt,
+    n_output_zero_idxs: felt,
+) -> (data_commitment: felt) {
     alloc_locals;
+
+    let (data_output_start: felt*) = alloc();
+
+    let note_output_ptr: felt* = data_output_start;
+    let position_output_ptr: felt* = note_output_ptr + n_output_notes * NoteDiffOutput.SIZE;
+    let tab_output_ptr: felt* = position_output_ptr + n_output_positions * PerpPositionOutput.SIZE;
+    let empty_output_ptr: felt* = tab_output_ptr + n_output_tabs * OrderTabOutput.SIZE;
 
     let (zero_idxs: felt*) = alloc();
 
     // ? Write note/position/order_tab updates to the program_output
-    let (zero_idxs_len: felt, zero_idxs: felt*) = _write_state_updates_to_output_inner(
-        state_dict_start, n_state_outputs, note_outputs, 0, zero_idxs
-    );
+    let (zero_idxs_len: felt, zero_idxs: felt*) = _write_state_updates_to_output_inner{
+        note_output_ptr=note_output_ptr,
+        position_output_ptr=position_output_ptr,
+        tab_output_ptr=tab_output_ptr,
+    }(state_dict_start, n_state_outputs, note_outputs, 0, zero_idxs);
 
     // ? Write batched zero indexes to the output
-    _write_zero_indexes_to_output(zero_idxs_len, zero_idxs);
+    _write_zero_indexes_to_output{empty_output_ptr=empty_output_ptr}(zero_idxs_len, zero_idxs);
 
-    return ();
+    // %{
+    //     data_output_len = ids.empty_output_ptr - ids.data_output_start
+
+    // for i in range(data_output_len):
+    //         print(f"assert output[{i}] = {memory[ids.data_output_start + i]};")
+    // %}
+
+    let data_output_len = empty_output_ptr - data_output_start;
+    let (data_commitment: felt) = poseidon_hash_many(data_output_len, data_output_start);
+
+    return (data_commitment,);
 }
 
 func _write_state_updates_to_output_inner{
     poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     bitwise_ptr: BitwiseBuiltin*,
-    note_output_ptr: NoteDiffOutput*,
-    position_output_ptr: PerpPositionOutput*,
-    tab_output_ptr: OrderTabOutput*,
-    empty_output_ptr: ZeroOutput*,
+    note_output_ptr: felt*,
+    position_output_ptr: felt*,
+    tab_output_ptr: felt*,
 }(
     state_dict_start: DictAccess*,
     n_state_outputs: felt,
@@ -203,7 +223,7 @@ func _write_state_updates_to_output_inner{
 
 // ?: Loop backwards through the notes array and write the last update for each index to the program output
 func write_note_update{
-    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: NoteDiffOutput*
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: felt*
 }(note_outputs: Note*, idx: felt, hash: felt) {
     alloc_locals;
 
@@ -219,9 +239,7 @@ func write_note_update{
 }
 
 func write_position_update{
-    poseidon_ptr: PoseidonBuiltin*,
-    bitwise_ptr: BitwiseBuiltin*,
-    position_output_ptr: PerpPositionOutput*,
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, position_output_ptr: felt*
 }(idx: felt, hash: felt) {
     alloc_locals;
 
@@ -240,7 +258,7 @@ func write_order_tab_update{
     poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     bitwise_ptr: BitwiseBuiltin*,
-    tab_output_ptr: OrderTabOutput*,
+    tab_output_ptr: felt*,
 }(idx: felt, hash: felt) {
     alloc_locals;
 
@@ -536,21 +554,20 @@ func write_mm_close_to_output{
 
 // * Notes * //
 func _write_new_note_to_output{
-    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: NoteDiffOutput*
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: felt*
 }(note: Note, index: felt) {
     alloc_locals;
 
-    let output: NoteDiffOutput* = note_output_ptr;
+    let output: felt* = note_output_ptr;
 
     let (trimed_blinding: felt) = bitwise_and(note.blinding_factor, BIT_64_AMOUNT);
     let (hidden_amount: felt) = bitwise_xor(note.amount, trimed_blinding);
 
-    // TODO:
-    // // & batched_note_info format: | token (32 bits) | hidden amount (64 bits) | idx (64 bits) |
-    // assert output.batched_note_info = ((note.token * 2 ** 64) + hidden_amount) * 2 ** 64 + index;
-    // let (comm: felt) = poseidon_hash(note.amount, note.blinding_factor);
-    // assert output.commitment = comm;
-    // assert output.address = note.address.x;
+    // & batched_note_info format: | token (32 bits) | hidden amount (64 bits) | idx (64 bits) |
+    assert output[0] = ((note.token * 2 ** 64) + hidden_amount) * 2 ** 64 + index;
+    let (comm: felt) = poseidon_hash(note.amount, note.blinding_factor);
+    assert output[1] = comm;
+    assert output[2] = note.address.x;
 
     let note_output_ptr = note_output_ptr + NoteDiffOutput.SIZE;
 
@@ -558,35 +575,35 @@ func _write_new_note_to_output{
 }
 
 // * Positions * //
-func _write_position_info_to_output{
-    position_output_ptr: PerpPositionOutput*, poseidon_ptr: PoseidonBuiltin*
-}(position: PerpPosition, index: felt) {
+func _write_position_info_to_output{position_output_ptr: felt*, poseidon_ptr: PoseidonBuiltin*}(
+    position: PerpPosition, index: felt
+) {
     alloc_locals;
 
-    let output: PerpPositionOutput* = position_output_ptr;
+    let output: felt* = position_output_ptr;
 
-    // // & | index (59 bits) | synthetic_token (32 bits) | position_size (64 bits) | max_vlp_supply (64 bits) | vlp_token (32 bits) |
-    // assert output.batched_position_info_slot1 = (
-    //     (
-    //         (position.index * 2 ** 32 + position.position_header.synthetic_token) * 2 ** 64 +
-    //         position.position_size
-    //     ) * 2 ** 64 +
-    //     position.position_header.max_vlp_supply
-    // ) * 2 ** 32 + position.position_header.vlp_token;
+    // & | index (59 bits) | synthetic_token (32 bits) | position_size (64 bits) | max_vlp_supply (64 bits) | vlp_token (32 bits) |
+    assert output[0] = (
+        (
+            (position.index * 2 ** 32 + position.position_header.synthetic_token) * 2 ** 64 +
+            position.position_size
+        ) * 2 ** 64 +
+        position.position_header.max_vlp_supply
+    ) * 2 ** 32 + position.position_header.vlp_token;
 
-    // // & | entry_price (64 bits) | liquidation_price (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
-    // assert output.batched_position_info_slot2 = (
-    //     (
-    //         (
-    //             ((position.entry_price * 2 ** 64) + position.liquidation_price) * 2 ** 64 +
-    //             position.vlp_supply
-    //         ) * 2 ** 32 +
-    //         position.last_funding_idx
-    //     ) * 2 +
-    //     position.order_side
-    // ) * 2 + position.position_header.allow_partial_liquidations;
+    // & | entry_price (64 bits) | liquidation_price (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
+    assert output[1] = (
+        (
+            (
+                ((position.entry_price * 2 ** 64) + position.liquidation_price) * 2 ** 64 +
+                position.vlp_supply
+            ) * 2 ** 32 +
+            position.last_funding_idx
+        ) * 2 +
+        position.order_side
+    ) * 2 + position.position_header.allow_partial_liquidations;
 
-    // assert output.public_key = position.position_header.position_address;
+    assert output[2] = position.position_header.position_address;
 
     let position_output_ptr = position_output_ptr + PerpPositionOutput.SIZE;
 
@@ -596,34 +613,34 @@ func _write_position_info_to_output{
 // * Order Tabs * //
 func _write_order_tab_info_to_output{
     bitwise_ptr: BitwiseBuiltin*,
-    tab_output_ptr: OrderTabOutput*,
+    tab_output_ptr: felt*,
     poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
 }(order_tab: OrderTab, index: felt) {
     alloc_locals;
 
-    let output: OrderTabOutput* = tab_output_ptr;
+    let output: felt* = tab_output_ptr;
 
-    // let tab_header: TabHeader* = &order_tab.tab_header;
+    let tab_header: TabHeader* = &order_tab.tab_header;
 
-    // let (base_trimed_blinding: felt) = bitwise_and(tab_header.base_blinding, BIT_64_AMOUNT);
-    // let (base_hidden_amount: felt) = bitwise_xor(order_tab.base_amount, base_trimed_blinding);
-    // let (quote_trimed_blinding: felt) = bitwise_and(tab_header.quote_blinding, BIT_64_AMOUNT);
-    // let (quote_hidden_amount: felt) = bitwise_xor(order_tab.quote_amount, quote_trimed_blinding);
+    let (base_trimed_blinding: felt) = bitwise_and(tab_header.base_blinding, BIT_64_AMOUNT);
+    let (base_hidden_amount: felt) = bitwise_xor(order_tab.base_amount, base_trimed_blinding);
+    let (quote_trimed_blinding: felt) = bitwise_and(tab_header.quote_blinding, BIT_64_AMOUNT);
+    let (quote_hidden_amount: felt) = bitwise_xor(order_tab.quote_amount, quote_trimed_blinding);
 
-    // // & format: | index (59 bits) | base_token (32 bits) | quote_token (32 bits) | base_hidden_amount (64 bits) | quote_hidden_amount (64 bits)
-    // let batched_info1 = (
-    //     ((index * 2 ** 32 + tab_header.base_token) * 2 ** 32 + tab_header.quote_token) * 2 ** 64 +
-    //     base_hidden_amount
-    // ) * 2 ** 64 + quote_hidden_amount;
-    // assert output.batched_tab_info_slot = batched_info1;
+    // & format: | index (59 bits) | base_token (32 bits) | quote_token (32 bits) | base_hidden_amount (64 bits) | quote_hidden_amount (64 bits)
+    let batched_info1 = (
+        ((index * 2 ** 32 + tab_header.base_token) * 2 ** 32 + tab_header.quote_token) * 2 ** 64 +
+        base_hidden_amount
+    ) * 2 ** 64 + quote_hidden_amount;
+    assert output[0] = batched_info1;
 
-    // let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);
-    // let (quote_commitment: felt) = poseidon_hash(order_tab.quote_amount, tab_header.quote_blinding);
+    let (base_commitment: felt) = poseidon_hash(order_tab.base_amount, tab_header.base_blinding);
+    let (quote_commitment: felt) = poseidon_hash(order_tab.quote_amount, tab_header.quote_blinding);
 
-    // assert output.base_commitment = base_commitment;
-    // assert output.quote_commitment = quote_commitment;
-    // assert output.public_key = tab_header.pub_key;
+    assert output[1] = base_commitment;
+    assert output[2] = quote_commitment;
+    assert output[3] = tab_header.pub_key;
 
     let tab_output_ptr = tab_output_ptr + OrderTabOutput.SIZE;
 
@@ -631,7 +648,7 @@ func _write_order_tab_info_to_output{
 }
 
 // * Empty Outputs * //
-func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_ptr: ZeroOutput*}(
+func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_ptr: felt*}(
     zero_idxs_len: felt, zero_idxs: felt*
 ) {
     alloc_locals;
@@ -642,8 +659,8 @@ func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_
     }
 
     if (zero_idxs_len == 1) {
-        let output: ZeroOutput* = empty_output_ptr;
-        // assert output.batched_idxs = zero_idxs[0];
+        let output: felt* = empty_output_ptr;
+        assert output[0] = zero_idxs[0];
 
         let empty_output_ptr = empty_output_ptr + ZeroOutput.SIZE;
 
@@ -652,8 +669,8 @@ func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_
     if (zero_idxs_len == 2) {
         let batched_zero_idxs = (zero_idxs[0] * 2 ** 64) + zero_idxs[1];
 
-        let output: ZeroOutput* = empty_output_ptr;
-        // assert output.batched_idxs = batched_zero_idxs;
+        let output: felt* = empty_output_ptr;
+        assert output[0] = batched_zero_idxs;
 
         let empty_output_ptr = empty_output_ptr + ZeroOutput.SIZE;
 
@@ -661,8 +678,8 @@ func _write_zero_indexes_to_output{poseidon_ptr: PoseidonBuiltin*, empty_output_
     } else {
         let batched_zero_idxs = ((zero_idxs[0] * 2 ** 64) + zero_idxs[1]) * 2 ** 64 + zero_idxs[2];
 
-        let output: ZeroOutput* = empty_output_ptr;
-        // assert output.batched_idxs = batched_zero_idxs;
+        let output: felt* = empty_output_ptr;
+        assert output[0] = batched_zero_idxs;
 
         let empty_output_ptr = empty_output_ptr + ZeroOutput.SIZE;
 

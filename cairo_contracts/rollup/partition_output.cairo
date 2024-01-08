@@ -23,10 +23,6 @@ func partition_output{output_ptr, range_check_ptr, poseidon_ptr: PoseidonBuiltin
     onchain_mm_action_output_ptr: OnChainMMActionOutput*,
     escape_output_ptr: EscapeOutput*,
     position_escape_output_ptr: PositionEscapeOutput*,
-    note_output_ptr: NoteDiffOutput*,
-    position_output_ptr: PerpPositionOutput*,
-    tab_output_ptr: OrderTabOutput*,
-    empty_output_ptr: ZeroOutput*,
 ) {
     alloc_locals;
 
@@ -68,26 +64,6 @@ func partition_output{output_ptr, range_check_ptr, poseidon_ptr: PoseidonBuiltin
         ) * EscapeOutput.SIZE,
         PositionEscapeOutput*,
     );
-    // ? Note updates
-    local note_output_ptr: NoteDiffOutput* = cast(
-        position_escape_output_ptr + global_config.dex_state.n_position_escapes *
-        PositionEscapeOutput.SIZE,
-        NoteDiffOutput*,
-    );
-    // ? Positon updates
-    local position_output_ptr: PerpPositionOutput* = cast(
-        note_output_ptr + global_config.dex_state.n_output_notes * NoteDiffOutput.SIZE,
-        PerpPositionOutput*,
-    );
-    // ? Order tab updates
-    local tab_output_ptr: OrderTabOutput* = cast(
-        position_output_ptr + global_config.dex_state.n_output_positions * PerpPositionOutput.SIZE,
-        OrderTabOutput*,
-    );
-    // ? Zero outputs
-    local empty_output_ptr: ZeroOutput* = cast(
-        tab_output_ptr + global_config.dex_state.n_output_tabs * OrderTabOutput.SIZE, ZeroOutput*
-    );
 
     return (
         accumulated_hashes,
@@ -96,9 +72,37 @@ func partition_output{output_ptr, range_check_ptr, poseidon_ptr: PoseidonBuiltin
         onchain_mm_action_output_ptr,
         escape_output_ptr,
         position_escape_output_ptr,
-        note_output_ptr,
-        position_output_ptr,
-        tab_output_ptr,
-        empty_output_ptr,
     );
 }
+
+// assert output[0] = 36636218526285297354448002014395229700574155562974365876224;
+// assert output[1] = 259401622558728448576186006637564770034896685737106709938187;
+// assert output[2] = 3023736918698719093291411456633828535178694537555173214431264691846072323594;
+
+// assert output[3] = 42913320261671978118283368359215069945113761482743606149120;
+// assert output[4] = 259401622558728450694097469234277639142418060295408596287497;
+// assert output[5] = 722398298752804971299597047252468542119685234477633699941138651141675297443;
+
+// assert output[6] = 69711283583141489161181612305138915912151083312355701948416;
+// assert output[7] = 13142484449898816628063614934573895529641521082329540329483;
+// assert output[8] = 1641255107799178482612869373884043412164918131756239247343505151921661675392;
+
+// assert output[9] = 119928097466234935271847653204012846996979738971176995651584;
+// assert output[10] = 13135148594426404444200438316584911377659130375480606195721;
+// assert output[11] = 1834897599728193794189896781444625701900400356064547707674442015221286917672;
+
+// 31397566065441383768254127515908241415423938665803317245949
+// 259401622558728448576186006637564770034896685737106709938187
+// 3023736918698719093291411456633828535178694537555173214431264691846072323594
+
+// 37666863382084717510506709262109202880201331430487859918845
+// 259401622558728450694097469234277639142418060295408596287497
+// 722398298752804971299597047252468542119685234477633699941138651141675297443
+
+// 69652830006715522793629640291669019839338748538086583157416
+// 13142484449898816628063614934573895529641521082329540329483
+// 1641255107799178482612869373884043412164918131756239247343505151921661675392
+
+// 119495645620815990847547632728638254343427638956051300860584
+// 13135148594426404444200438316584911377659130375480606195721
+// 1834897599728193794189896781444625701900400356064547707674442015221286917672

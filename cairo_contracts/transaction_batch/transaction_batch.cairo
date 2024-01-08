@@ -112,10 +112,6 @@ func main{
         local onchain_mm_action_output_ptr: OnChainMMActionOutput*,
         local escape_output_ptr: EscapeOutput*,
         local position_escape_output_ptr: PositionEscapeOutput*,
-        local note_output_ptr: NoteDiffOutput*,
-        local position_output_ptr: PerpPositionOutput*,
-        local tab_output_ptr: OrderTabOutput*,
-        local empty_output_ptr: ZeroOutput*,
     ) = partition_output(global_config);
 
     let deposit_output_ptr_start = deposit_output_ptr;
@@ -158,10 +154,10 @@ func main{
     //         prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
     //         new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
 
-    //         if idx in prev_values and prev_values[idx] != prev_val:
+    // if idx in prev_values and prev_values[idx] != prev_val:
     //             print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
 
-    //         prev_values[idx] = new_val
+    // prev_values[idx] = new_val
     // %}
 
     finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
@@ -197,12 +193,19 @@ func main{
 
     // * WRITE STATE UPDATES TO THE PROGRAM OUTPUT ******************************
     %{ stored_indexes = {} %}
-    write_state_updates_to_output{
-        note_output_ptr=note_output_ptr,
-        position_output_ptr=position_output_ptr,
-        tab_output_ptr=tab_output_ptr,
-        empty_output_ptr=empty_output_ptr,
-    }(squashed_state_dict, squashed_state_dict_len, note_updates_start);
+    let (data_commitment: felt) = write_state_updates_to_output(
+        squashed_state_dict,
+        squashed_state_dict_len,
+        note_updates_start,
+        global_config.dex_state.n_output_notes,
+        global_config.dex_state.n_output_positions,
+        global_config.dex_state.n_output_tabs,
+        global_config.dex_state.n_zero_indexes,
+    );
+    local da_output_ptr: felt* = cast(position_escape_output_ptr, felt*);
+    assert da_output_ptr[0] = data_commitment;
+
+    %{ print("da_output_ptr: ", ids.data_commitment) %}
 
     // * WRITE DEPOSIT AND WITHDRAWAL ACCUMULATED OUTPUTS TO THE PROGRAM OUTPUT ***********
     let deposit_output_len = (deposit_output_ptr - deposit_output_ptr_start) /
@@ -213,8 +216,7 @@ func main{
         accumulated_hashes=accumulated_hashes, global_config=global_config
     }(deposit_output_len, deposit_output_ptr_start, withdraw_output_len, withdraw_output_ptr_start);
 
-    // TODO: local output_ptr: felt = cast(empty_output_ptr, felt);
-    local output_ptr: felt = cast(position_escape_output_ptr, felt);
+    local output_ptr: felt = cast(da_output_ptr + 1, felt);
 
     %{ print("all good") %}
 
