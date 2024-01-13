@@ -127,7 +127,7 @@ func write_state_updates_to_output{
     //     data_output_len = ids.empty_output_ptr - ids.data_output_start
 
     // for i in range(data_output_len):
-    //         print(f"assert output[{i}] = {memory[ids.data_output_start + i]};")
+    //         print(f"{memory[ids.data_output_start + i]},")
     // %}
 
     let data_output_len = empty_output_ptr - data_output_start;

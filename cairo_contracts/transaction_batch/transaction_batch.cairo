@@ -146,19 +146,19 @@ func main{
 
     // * Squash dictionaries =============================================================================
 
-    // let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
-    // %{
-    //     prev_values = {}
-    //     for i in range(ids.dict_len):
-    //         idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
-    //         prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
-    //         new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
+    let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
+    %{
+        prev_values = {}
+        for i in range(ids.dict_len):
+            idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
+            prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
+            new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
 
-    // if idx in prev_values and prev_values[idx] != prev_val:
-    //             print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
+            if idx in prev_values and prev_values[idx] != prev_val:
+                print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
 
-    // prev_values[idx] = new_val
-    // %}
+            prev_values[idx] = new_val
+    %}
 
     finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
 
