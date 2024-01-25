@@ -64,7 +64,6 @@ func verify_position_hash{poseidon_ptr: PoseidonBuiltin*}(position: PerpPosition
         position.position_header.allow_partial_liquidations,
         position.position_header.position_address,
         position.position_header.vlp_token,
-        position.position_header.max_vlp_supply,
     );
 
     assert header_hash = position.position_header.hash;
@@ -111,23 +110,18 @@ func _hash_position_internal{poseidon_ptr: PoseidonBuiltin*}(
 }
 
 func _hash_position_header{poseidon_ptr: PoseidonBuiltin*}(
-    synthetic_token: felt,
-    allow_partial_liquidations: felt,
-    position_address: felt,
-    vlp_token: felt,
-    max_vlp_supply: felt,
+    synthetic_token: felt, allow_partial_liquidations: felt, position_address: felt, vlp_token: felt
 ) -> (res: felt) {
     alloc_locals;
 
-    // & hash = H({allow_partial_liquidations, synthetic_token, position_address, vlp_token, max_vlp_supply})
+    // & hash = H({allow_partial_liquidations, synthetic_token, position_address, vlp_token})
     let (local arr: felt*) = alloc();
     assert arr[0] = allow_partial_liquidations;
     assert arr[1] = synthetic_token;
     assert arr[2] = position_address;
     assert arr[3] = vlp_token;
-    assert arr[4] = max_vlp_supply;
 
-    let (res) = poseidon_hash_many(5, arr);
+    let (res) = poseidon_hash_many(4, arr);
 
     return (res=res);
 }

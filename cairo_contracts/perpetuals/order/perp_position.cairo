@@ -61,10 +61,10 @@ func construct_new_position{
     );
 
     let (header_hash: felt) = _hash_position_header(
-        synthetic_token, allow_partial_liquidations, position_address, 0, 0
+        synthetic_token, allow_partial_liquidations, position_address, 0
     );
     let position_header: PositionHeader = PositionHeader(
-        synthetic_token, allow_partial_liquidations, position_address, 0, 0, header_hash
+        synthetic_token, allow_partial_liquidations, position_address, 0, header_hash
     );
 
     let (hash: felt) = _hash_position_internal(

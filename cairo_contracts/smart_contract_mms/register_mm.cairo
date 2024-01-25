@@ -42,27 +42,23 @@ func register_mm{
     verify_position_hash(position);
 
     local vlp_token: felt;
-    local max_vlp_supply: felt;
-    %{
-        ids.vlp_token = current_order["vlp_token"]
-        ids.max_vlp_supply = current_order["max_vlp_supply"]
-    %}
+    %{ ids.vlp_token = current_order["vlp_token"] %}
 
     // ? hash the inputs and verify signature
-    verify_register_mm_sig(position, vlp_token, max_vlp_supply);
+    verify_register_mm_sig(position, vlp_token);
 
     // ? get vlp amount
     let vlp_amount = position.margin;
 
     // ? update the position
-    let new_position = get_updated_position(position, vlp_amount, vlp_token, max_vlp_supply);
+    let new_position = get_updated_position(position, vlp_amount, vlp_token);
 
     // ? update the state_dict
     update_state_after_position_register(position, new_position);
 
     // ? update the output
     write_mm_registration_to_output(
-        position.position_header.position_address, vlp_token, max_vlp_supply, vlp_amount
+        position.position_header.position_address, vlp_token, vlp_amount
     );
 
     return ();

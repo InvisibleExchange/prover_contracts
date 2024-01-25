@@ -69,7 +69,6 @@ func python_define_utils() {
         POS_HEADER_POSITION_ADDRESS_OFFSET = ids.PositionHeader.position_address
         POS_HEADER_ALLOW_PARTIAL_LIQUIDATIONS_OFFSET = ids.PositionHeader.allow_partial_liquidations
         POS_HEADER_VLP_TOKEN_OFFSET = ids.PositionHeader.vlp_token
-        POS_HEADER_MAX_VLP_SUPPLY_OFFSET = ids.PositionHeader.max_vlp_supply
         POS_HEADER_HASH_OFFSET = ids.PositionHeader.hash
 
 
@@ -142,7 +141,6 @@ func python_define_utils() {
                 "position_address": memory[header_address + POS_HEADER_POSITION_ADDRESS_OFFSET],
                 "allow_partial_liquidations": memory[header_address + POS_HEADER_ALLOW_PARTIAL_LIQUIDATIONS_OFFSET],
                 "vlp_token": memory[header_address + POS_HEADER_VLP_TOKEN_OFFSET],
-                "max_vlp_supply": memory[header_address + POS_HEADER_MAX_VLP_SUPPLY_OFFSET],
                 "header_hash": memory[header_address + POS_HEADER_HASH_OFFSET],
             }
 
@@ -167,7 +165,6 @@ func python_define_utils() {
             memory[header_address + POS_HEADER_POSITION_ADDRESS_OFFSET] = int(position_["position_address"])
             memory[header_address + POS_HEADER_ALLOW_PARTIAL_LIQUIDATIONS_OFFSET] = int(position_["allow_partial_liquidations"])
             memory[header_address + POS_HEADER_VLP_TOKEN_OFFSET] = int(position_["vlp_token"])
-            memory[header_address + POS_HEADER_MAX_VLP_SUPPLY_OFFSET] = int(position_["max_vlp_supply"])
             memory[header_address + POS_HEADER_HASH_OFFSET] = int(position_["header_hash"])
 
 
@@ -222,7 +219,6 @@ func python_define_utils() {
                 "position_address": memory[header_address + POS_HEADER_POSITION_ADDRESS_OFFSET],
                 "allow_partial_liquidations": memory[header_address + POS_HEADER_ALLOW_PARTIAL_LIQUIDATIONS_OFFSET],
                 "vlp_token": memory[header_address + POS_HEADER_VLP_TOKEN_OFFSET],
-                "max_vlp_supply": memory[header_address + POS_HEADER_MAX_VLP_SUPPLY_OFFSET],
                 "header_hash": memory[header_address + POS_HEADER_HASH_OFFSET],
             }
 

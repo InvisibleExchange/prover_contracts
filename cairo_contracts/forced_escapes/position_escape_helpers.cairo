@@ -134,7 +134,7 @@ func open_counter_party_position{
     let synthetic_amount = position_a.position_size;
 
     local position_idx: felt;
-    %{ ids.position_idx = int(position_escape["position_idx"]) %}
+    %{ ids.position_idx = int(current_transaction["new_position_b"]["index"]) %}
 
     local funding_idx: felt;
     %{ ids.funding_idx = int(position_escape["new_funding_idx"]) %}
@@ -307,14 +307,13 @@ func _hash_position_solidity{range_check_ptr, keccak_ptr: felt*, bitwise_ptr: Bi
 ) -> felt {
     alloc_locals;
 
-    // & hash = H({allow_partial_liquidations, synthetic_token, position_address, vlp_token, max_vlp_supply,
+    // & hash = H({allow_partial_liquidations, synthetic_token, position_address, vlp_token,
     // &           order_side, position_size, entry_price, liquidation_price, last_funding_idx, vlp_supply})
     let (local input_arr: felt*) = alloc();
     assert input_arr[0] = position.position_header.allow_partial_liquidations;
     assert input_arr[1] = position.position_header.synthetic_token;
     assert input_arr[2] = position.position_header.position_address;
     assert input_arr[3] = position.position_header.vlp_token;
-    assert input_arr[4] = position.position_header.max_vlp_supply;
     assert input_arr[5] = position.order_side;
     assert input_arr[6] = position.position_size;
     assert input_arr[7] = position.entry_price;

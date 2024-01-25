@@ -146,19 +146,19 @@ func main{
 
     // * Squash dictionaries =============================================================================
 
-    let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
-    %{
-        prev_values = {}
-        for i in range(ids.dict_len):
-            idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
-            prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
-            new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
+    // let dict_len = (state_dict - state_dict_start) / DictAccess.SIZE;
+    // %{
+    //     prev_values = {}
+    //     for i in range(ids.dict_len):
+    //         idx = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +0]
+    //         prev_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +1]
+    //         new_val = memory[ids.state_dict_start.address_ + i*ids.DictAccess.SIZE +2]
 
-            if idx in prev_values and prev_values[idx] != prev_val:
-                print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
+    // if idx in prev_values and prev_values[idx] != prev_val:
+    //             print("idx: ", idx, "prev_values[idx]: ", prev_values[idx], "prev_val: ", prev_val)
 
-            prev_values[idx] = new_val
-    %}
+    // prev_values[idx] = new_val
+    // %}
 
     finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
 
@@ -181,6 +181,17 @@ func main{
 
     // print("idx: ", idx, "prev_val: ", prev_val, "new_val: ", new_val)
     // %}
+
+    %{
+        for i in range(ids.squashed_state_dict_len):
+            idx = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +0]
+
+            if idx == 2:
+                prev_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +1]
+                new_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +2]
+
+                print("idx: ", idx, "prev_val: ", prev_val, "new_val: ", new_val)
+    %}
 
     // * VERIFY MERKLE TREE UPDATES ******************************************************
     verify_merkle_tree_updates(
@@ -312,7 +323,7 @@ func execute_transactions{
     if (nondet %{ tx_type == "margin_change" %} != 0) {
         %{
             current_margin_change_info = current_transaction["margin_change"]
-            zero_index = int(current_transaction["zero_idx"])
+            zero_index = int(current_transaction.get("zero_idx", 0))
         %}
 
         execute_margin_change();

@@ -54,7 +54,7 @@ const ADD_LIQUIDITY = 1;
 const REMOVE_LIQUIDITY = 2;
 const CLOSE_MM = 3;
 struct OnChainMMActionOutput {
-    // & batched_registration_info format: | vlp_token (32 bits) | max_vlp_supply (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
+    // & batched_registration_info format: | vlp_token (32 bits) | vlp_amount (64 bits) | action_type (8 bits) |
     // & batched_add_liq_info format:  usdcAmount (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
     // & batched_remove_liq_info format:  | initialValue (64 bits) | vlpAmount (64 bits) | returnAmount (64 bits) | action_type (8 bits) |
     // & batched_close_mm_info format:  | initialValueSum (64 bits) | vlpAmountSum (64 bits) | returnAmount (64 bits) | action_type (8 bits) |
@@ -65,8 +65,8 @@ struct OnChainMMActionOutput {
 
 // Represents the struct of data written to the program output for each perpetual position Modifictaion.
 struct PerpPositionOutput {
-    // & format: | index (59 bits) | position_size (64 bits) | max_vlp_supply (64 bits) | vlp_token (32 bits) | synthetic_token (32 bits) |
-    // & format: | entry_price (64 bits) | liquidation_price (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
+    // & format: | index (64 bits) | synthetic_token (32 bits) | position_size (64 bits) | vlp_token (32 bits) |
+    // & format: | entry_price (64 bits) | margin (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
     // & format: | public key <-> position_address (251 bits) |
     batched_position_info_slot1: felt,
     batched_position_info_slot2: felt,
@@ -465,16 +465,14 @@ func write_mm_registration_to_output{
     poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     onchain_mm_action_output_ptr: OnChainMMActionOutput*,
-}(address: felt, vlp_token: felt, max_vlp_supply: felt, vlp_amount: felt) {
+}(address: felt, vlp_token: felt, vlp_amount: felt) {
     alloc_locals;
 
-    // & batched_registration_info format: | vlp_token (32 bits) | max_vlp_supply (64 bits) | vlp_amount (64 bits) | action_type (8 bits) |
+    // & batched_registration_info format: | vlp_token (32 bits) | vlp_amount (64 bits) | action_type (8 bits) |
     let output: OnChainMMActionOutput* = onchain_mm_action_output_ptr;
     assert output.mm_position_address = address;
     assert output.depositor = 0;
-    assert output.batched_action_info = (
-        (vlp_token * 2 ** 64 + max_vlp_supply) * 2 ** 64 + vlp_amount
-    ) * 2 ** 8 + REGISTRATION;
+    assert output.batched_action_info = (vlp_token * 2 ** 64 + vlp_amount) * 2 ** 8 + REGISTRATION;
 
     let onchain_mm_action_output_ptr = onchain_mm_action_output_ptr + OnChainMMActionOutput.SIZE;
 
@@ -582,22 +580,17 @@ func _write_position_info_to_output{position_output_ptr: felt*, poseidon_ptr: Po
 
     let output: felt* = position_output_ptr;
 
-    // & | index (59 bits) | synthetic_token (32 bits) | position_size (64 bits) | max_vlp_supply (64 bits) | vlp_token (32 bits) |
+    // & | index (64 bits) | synthetic_token (32 bits) | position_size (64 bits) |  vlp_token (32 bits) |
     assert output[0] = (
-        (
-            (position.index * 2 ** 32 + position.position_header.synthetic_token) * 2 ** 64 +
-            position.position_size
-        ) * 2 ** 64 +
-        position.position_header.max_vlp_supply
+        (position.index * 2 ** 32 + position.position_header.synthetic_token) * 2 ** 64 +
+        position.position_size
     ) * 2 ** 32 + position.position_header.vlp_token;
 
-    // & | entry_price (64 bits) | liquidation_price (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
+    // & | entry_price (64 bits) | margin (64 bits) | vlp_supply (64 bits) | last_funding_idx (32 bits) | order_side (1 bits) | allow_partial_liquidations (1 bits) |
     assert output[1] = (
         (
-            (
-                ((position.entry_price * 2 ** 64) + position.liquidation_price) * 2 ** 64 +
-                position.vlp_supply
-            ) * 2 ** 32 +
+            (((position.entry_price * 2 ** 64) + position.margin) * 2 ** 64 + position.vlp_supply) *
+            2 ** 32 +
             position.last_funding_idx
         ) * 2 +
         position.order_side

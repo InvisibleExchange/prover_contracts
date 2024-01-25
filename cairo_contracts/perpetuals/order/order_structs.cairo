@@ -33,7 +33,6 @@ struct PositionHeader {
     allow_partial_liquidations: felt,
     position_address: felt,
     vlp_token: felt,
-    max_vlp_supply: felt,
     hash: felt,
 }
 

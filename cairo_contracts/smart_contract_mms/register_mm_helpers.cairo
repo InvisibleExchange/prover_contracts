@@ -35,9 +35,7 @@ func get_vlp_amount{poseidon_ptr: PoseidonBuiltin*, range_check_ptr, global_conf
 
 func get_updated_position{
     poseidon_ptr: PoseidonBuiltin*, range_check_ptr, global_config: GlobalConfig*
-}(
-    prev_position: PerpPosition, vlp_amount: felt, vlp_token: felt, max_vlp_supply: felt
-) -> PerpPosition {
+}(prev_position: PerpPosition, vlp_amount: felt, vlp_token: felt) -> PerpPosition {
     alloc_locals;
 
     // ? Assert position is not yet registered
@@ -50,7 +48,6 @@ func get_updated_position{
         prev_header.allow_partial_liquidations,
         prev_header.position_address,
         vlp_token,
-        max_vlp_supply,
     );
 
     let position_header = PositionHeader(
@@ -58,7 +55,6 @@ func get_updated_position{
         prev_header.allow_partial_liquidations,
         prev_header.position_address,
         vlp_token,
-        max_vlp_supply,
         new_header_hash,
     );
 
@@ -116,10 +112,10 @@ func update_state_after_position_register{
 
 func verify_register_mm_sig{
     poseidon_ptr: PoseidonBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*
-}(position: PerpPosition, vlp_token: felt, max_vlp_supply: felt) {
+}(position: PerpPosition, vlp_token: felt) {
     alloc_locals;
 
-    let msg_hash = _hash_register_message(position.hash, vlp_token, max_vlp_supply);
+    let msg_hash = _hash_register_message(position.hash, vlp_token);
 
     local sig_r: felt;
     local sig_s: felt;
@@ -140,15 +136,14 @@ func verify_register_mm_sig{
 }
 
 func _hash_register_message{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
-    position_hash: felt, vlp_token: felt, max_vlp_supply: felt
+    position_hash: felt, vlp_token: felt
 ) -> felt {
     alloc_locals;
-    // & hash = H({position.hash, vlp_token, max_vlp_supply})
+    // & hash = H({position.hash, vlp_token})
 
     let (local arr: felt*) = alloc();
     assert arr[0] = position_hash;
     assert arr[1] = vlp_token;
-    assert arr[2] = max_vlp_supply;
 
     let (hash) = poseidon_hash_many(3, arr);
 

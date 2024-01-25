@@ -635,7 +635,6 @@ func get_perp_position() -> PerpPosition {
         memory[position_header_addr + ids.PositionHeader.position_address] = int(prev_position["position_header"]["position_address"])
         memory[position_header_addr + ids.PositionHeader.allow_partial_liquidations] = int(prev_position["position_header"]["allow_partial_liquidations"])
         memory[position_header_addr + ids.PositionHeader.vlp_token] = int(prev_position["position_header"]["vlp_token"])
-        memory[position_header_addr + ids.PositionHeader.max_vlp_supply] = int(prev_position["position_header"]["max_vlp_supply"])
         memory[position_header_addr + ids.PositionHeader.hash] = int(prev_position["position_header"]["hash"])
     %}
 
