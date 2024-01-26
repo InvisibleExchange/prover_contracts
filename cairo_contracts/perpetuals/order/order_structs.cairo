@@ -24,7 +24,8 @@ struct OpenOrderFields {
 }
 
 struct CloseOrderFields {
-    dest_received_address: felt,
+    dest_received_address_x: felt,
+    dest_received_address_y: felt,
     dest_received_blinding: felt,
 }
 

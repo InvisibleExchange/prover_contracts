@@ -133,11 +133,11 @@ func sum_notes(notes_len: felt, notes: Note*, token: felt, sum: felt) -> (sum: f
 }
 
 func construct_new_note{poseidon_ptr: PoseidonBuiltin*}(
-    address_x: felt, token: felt, amount: felt, blinding_factor: felt, index: felt
+    address_x: felt, address_y: felt, token: felt, amount: felt, blinding_factor: felt, index: felt
 ) -> (note: Note) {
     alloc_locals;
 
-    let address = EcPoint(x=address_x, y=0);
+    let address = EcPoint(x=address_x, y=address_y);
 
     let (note_hash: felt) = _hash_note_inputs(address, token, amount, blinding_factor);
 

@@ -102,7 +102,8 @@ func first_fill{
     // let swap_received_amount = amount - fee
     // ? This is the note receiveing the funds of this swap
     let (swap_note: Note) = construct_new_note(
-        spot_note_info.dest_received_address,
+        spot_note_info.dest_received_address_x,
+        spot_note_info.dest_received_address_y,
         invisibl3_order.token_received,
         receive_amount - fee_taken,
         spot_note_info.dest_received_blinding,
@@ -122,7 +123,11 @@ func first_fill{
     let notes_in_0 = notes_in[0];
     let unspent_amount = invisibl3_order.amount_spent - spend_amount;
     refund_partial_fill(
-        invisibl3_order, notes_in_0.address.x, notes_in_0.blinding_factor, unspent_amount
+        invisibl3_order,
+        notes_in_0.address.x,
+        notes_in_0.address.y,
+        notes_in_0.blinding_factor,
+        unspent_amount,
     );
 
     return ();
@@ -190,7 +195,8 @@ func later_fills{
 
     // ? This is the note receiveing the funds of this swap
     let (swap_note: Note) = construct_new_note(
-        spot_note_info.dest_received_address,
+        spot_note_info.dest_received_address_x,
+        spot_note_info.dest_received_address_y,
         invisibl3_order.token_received,
         receive_amount - fee_taken,
         spot_note_info.dest_received_blinding,
@@ -228,6 +234,7 @@ func later_fills{
     refund_partial_fill(
         invisibl3_order,
         prev_fill_refund_note.address.x,
+        prev_fill_refund_note.address.y,
         prev_fill_refund_note.blinding_factor,
         unspent_amount,
     );

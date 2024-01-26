@@ -19,7 +19,8 @@ struct SpotNotesInfo {
     notes_in_len: felt,
     notes_in: Note*,
     refund_note: Note,
-    dest_received_address: felt,  // x coordinate of address
+    dest_received_address_x: felt,
+    dest_received_address_y: felt,
     dest_received_blinding: felt,
 }
 
@@ -54,7 +55,7 @@ func hash_spot_note_info{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
     );
 
     assert hashed_notes_in[hashed_notes_in_len] = spot_note_info.refund_note.hash;
-    assert hashed_notes_in[hashed_notes_in_len + 1] = spot_note_info.dest_received_address;
+    assert hashed_notes_in[hashed_notes_in_len + 1] = spot_note_info.dest_received_address_x;
     assert hashed_notes_in[hashed_notes_in_len + 2] = spot_note_info.dest_received_blinding;
 
     let (res) = poseidon_hash_many(hashed_notes_in_len + 3, hashed_notes_in);

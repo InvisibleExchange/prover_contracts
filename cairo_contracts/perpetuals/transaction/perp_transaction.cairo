@@ -335,7 +335,8 @@ func execute_close_order{
     %{ ids.index = order_indexes["return_collateral_idx"] %}
 
     let (return_collateral_note: Note) = construct_new_note(
-        close_order_fields.dest_received_address,
+        close_order_fields.dest_received_address_x,
+        close_order_fields.dest_received_address_y,
         global_config.collateral_token,
         collateral_returned,
         close_order_fields.dest_received_blinding,
@@ -563,6 +564,7 @@ func refund_unspent_margin_first_fill{
     refund_partial_fill(
         order,
         notes_in_0.address.x,
+        notes_in_0.address.y,
         notes_in_0.blinding_factor,
         open_order_fields.collateral_token,
         unspent_margin,
@@ -601,6 +603,7 @@ func refund_unspent_margin_later_fills{
     refund_partial_fill(
         order,
         pfr_note.address.x,
+        pfr_note.address.y,
         pfr_note.blinding_factor,
         open_order_fields.collateral_token,
         unspent_margin,
@@ -691,7 +694,8 @@ func get_close_order_fields{poseidon_ptr: PoseidonBuiltin*}(close_order_fields: 
     %{
         close_order_field_inputs = current_order["close_order_fields"]
 
-        memory[ids.close_order_fields.address_ + ids.CloseOrderFields.dest_received_address] = int(close_order_field_inputs["dest_received_address"]["x"])
+        memory[ids.close_order_fields.address_ + ids.CloseOrderFields.dest_received_address_x] = int(close_order_field_inputs["dest_received_address"]["x"])
+        memory[ids.close_order_fields.address_ + ids.CloseOrderFields.dest_received_address_y] = int(close_order_field_inputs["dest_received_address"]["y"])
         memory[ids.close_order_fields.address_ + ids.CloseOrderFields.dest_received_blinding] = int(close_order_field_inputs["dest_received_blinding"])
     %}
 

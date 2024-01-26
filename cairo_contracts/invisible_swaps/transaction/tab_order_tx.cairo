@@ -7,8 +7,6 @@ from helpers.utils import Note, construct_new_note, sum_notes, take_fee
 from helpers.signatures import verify_spot_tab_order_signature
 from helpers.spot_helpers.dict_updates import update_state_dict
 
-from helpers.spot_helpers.partial_fill_helpers import refund_partial_fill
-
 from rollup.output_structs import ZeroOutput
 from rollup.global_config import get_dust_amount, GlobalConfig
 

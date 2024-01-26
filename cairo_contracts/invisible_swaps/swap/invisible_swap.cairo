@@ -183,7 +183,7 @@ func handle_spot_note_info_inputs{poseidon_ptr: PoseidonBuiltin*}(spot_note_info
         notes_in_len_addr = ids.spot_note_info.address_ + ids.SpotNotesInfo.notes_in_len
         notes_in_addr = ids.spot_note_info.address_ + ids.SpotNotesInfo.notes_in
         refund_note_addr = ids.spot_note_info.address_ +   ids.SpotNotesInfo.refund_note
-        dest_received_address_addr = ids.spot_note_info.address_ +   ids.SpotNotesInfo.dest_received_address
+        dest_received_address_addr = ids.spot_note_info.address_ +   ids.SpotNotesInfo.dest_received_address_x
         dest_received_blinding_addr = ids.spot_note_info.address_ +   ids.SpotNotesInfo.dest_received_blinding
 
         memory[notes_in_len_addr] = len(input_notes)
@@ -216,7 +216,8 @@ func handle_spot_note_info_inputs{poseidon_ptr: PoseidonBuiltin*}(spot_note_info
             memory[refund_note_addr + HASH_OFFSET] = 0
 
 
-        memory[dest_received_address_addr] = int(current_order["spot_note_info"]["dest_received_address"]["x"]) # Need just the x coordinate
+        memory[dest_received_address_addr] = int(current_order["spot_note_info"]["dest_received_address"]["x"])
+        memory[dest_received_address_addr+1] = int(current_order["spot_note_info"]["dest_received_address"]["y"])
         memory[dest_received_blinding_addr] = int(current_order["spot_note_info"]["dest_received_blinding"])
     %}
 

@@ -153,7 +153,7 @@ func _hash_close_order_fields{poseidon_ptr: PoseidonBuiltin*}(
     alloc_locals;
 
     let (hash: felt) = poseidon_hash(
-        close_order_fields.dest_received_address, close_order_fields.dest_received_blinding
+        close_order_fields.dest_received_address_x, close_order_fields.dest_received_blinding
     );
 
     return (res=hash);

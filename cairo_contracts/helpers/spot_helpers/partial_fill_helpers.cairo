@@ -14,10 +14,12 @@ from helpers.utils import Note, construct_new_note, sum_notes, validate_fee_take
 
 func refund_partial_fill{
     poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
-}(order: Invisibl3Order, address: felt, blinding: felt, unspent_amount: felt) {
+}(order: Invisibl3Order, address_x: felt, address_y: felt, blinding: felt, unspent_amount: felt) {
     //
 
-    let (pfr_note: Note) = partial_fill_updates(order, address, blinding, unspent_amount);
+    let (pfr_note: Note) = partial_fill_updates(
+        order, address_x, address_y, blinding, unspent_amount
+    );
 
     // * Update the note dict with the new notes
 
@@ -42,7 +44,11 @@ func refund_partial_fill{
 }
 
 func partial_fill_updates{poseidon_ptr: PoseidonBuiltin*}(
-    invisible_order: Invisibl3Order, address: felt, blinding: felt, unspent_amount: felt
+    invisible_order: Invisibl3Order,
+    address_x: felt,
+    address_y: felt,
+    blinding: felt,
+    unspent_amount: felt,
 ) -> (pf_note: Note) {
     alloc_locals;
 
@@ -51,7 +57,12 @@ func partial_fill_updates{poseidon_ptr: PoseidonBuiltin*}(
 
     // ? This is the refund note of the leftover amount that wasn't spent in the swap
     let (partial_fill_note: Note) = construct_new_note(
-        address, invisible_order.token_spent, unspent_amount, blinding, new_fill_refund_note_idx
+        address_x,
+        address_y,
+        invisible_order.token_spent,
+        unspent_amount,
+        blinding,
+        new_fill_refund_note_idx,
     );
 
     return (partial_fill_note,);

@@ -79,7 +79,8 @@ func close_order_tab{
     %}
 
     let (base_return_note: Note) = construct_new_note(
-        base_close_order_fields.dest_received_address,
+        base_close_order_fields.dest_received_address_x,
+        base_close_order_fields.dest_received_address_y,
         base_token,
         base_amount_change,
         base_close_order_fields.dest_received_blinding,
@@ -87,7 +88,8 @@ func close_order_tab{
     );
 
     let (quote_return_note: Note) = construct_new_note(
-        quote_close_order_fields.dest_received_address,
+        quote_close_order_fields.dest_received_address_x,
+        quote_close_order_fields.dest_received_address_y,
         quote_token,
         quote_amount_change,
         quote_close_order_fields.dest_received_blinding,
@@ -111,7 +113,6 @@ func close_order_tab{
 
         return ();
     } else {
-
         // ? Update the order tab
         let updated_base_amount = order_tab.base_amount - base_amount_change;
         let updated_quote_amount = order_tab.quote_amount - quote_amount_change;
@@ -156,10 +157,12 @@ func get_close_order_fields{poseidon_ptr: PoseidonBuiltin*}(
         base_close_order_field_inputs = current_order["base_close_order_fields"]
         quote_close_order_field_inputs = current_order["quote_close_order_fields"]
 
-        memory[ids.base_close_order_fields.address_ + ids.CloseOrderFields.dest_received_address] = int(base_close_order_field_inputs["dest_received_address"]["x"])
+        memory[ids.base_close_order_fields.address_ + ids.CloseOrderFields.dest_received_address_x] = int(base_close_order_field_inputs["dest_received_address"]["x"])
+        memory[ids.base_close_order_fields.address_ + ids.CloseOrderFields.dest_received_address_y] = int(base_close_order_field_inputs["dest_received_address"]["y"])
         memory[ids.base_close_order_fields.address_ + ids.CloseOrderFields.dest_received_blinding] = int(base_close_order_field_inputs["dest_received_blinding"])
 
-        memory[ids.quote_close_order_fields.address_ + ids.CloseOrderFields.dest_received_address] = int(quote_close_order_field_inputs["dest_received_address"]["x"])
+        memory[ids.quote_close_order_fields.address_ + ids.CloseOrderFields.dest_received_address_x] = int(quote_close_order_field_inputs["dest_received_address"]["x"])
+        memory[ids.quote_close_order_fields.address_ + ids.CloseOrderFields.dest_received_address_y] = int(quote_close_order_field_inputs["dest_received_address"]["y"])
         memory[ids.quote_close_order_fields.address_ + ids.CloseOrderFields.dest_received_blinding] = int(quote_close_order_field_inputs["dest_received_blinding"])
     %}
 

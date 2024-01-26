@@ -11,9 +11,16 @@ from perpetuals.order.order_structs import PerpOrder
 
 func refund_partial_fill{
     poseidon_ptr: PoseidonBuiltin*, state_dict: DictAccess*, note_updates: Note*
-}(order: PerpOrder, address: felt, blinding: felt, collateral_token: felt, unspent_margin: felt) {
+}(
+    order: PerpOrder,
+    address_x: felt,
+    address_y: felt,
+    blinding: felt,
+    collateral_token: felt,
+    unspent_margin: felt,
+) {
     let (pfr_note: Note) = partial_fill_updates(
-        order, address, blinding, collateral_token, unspent_margin
+        order, address_x, address_y, blinding, collateral_token, unspent_margin
     );
 
     // * Update the note dict with the new notes
@@ -39,7 +46,12 @@ func refund_partial_fill{
 }
 
 func partial_fill_updates{poseidon_ptr: PoseidonBuiltin*, note_updates: Note*}(
-    order: PerpOrder, address: felt, blinding: felt, token: felt, unspent_margin: felt
+    order: PerpOrder,
+    address_x: felt,
+    address_y: felt,
+    blinding: felt,
+    token: felt,
+    unspent_margin: felt,
 ) -> (pfr_note: Note) {
     alloc_locals;
 
@@ -49,7 +61,7 @@ func partial_fill_updates{poseidon_ptr: PoseidonBuiltin*, note_updates: Note*}(
 
     // Todo: change dummy blinding factor
     let (pfr_note: Note) = construct_new_note(
-        address, token, unspent_margin, blinding, new_pfr_note_idx
+        address_x, address_y, token, unspent_margin, blinding, new_pfr_note_idx
     );
 
     return (pfr_note,);

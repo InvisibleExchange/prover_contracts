@@ -23,7 +23,8 @@ struct NoteDiffOutput {
     // & batched_note_info format: | token (32 bits) | hidden amount (64 bits) | idx (64 bits) |
     batched_note_info: felt,
     commitment: felt,
-    address: felt,
+    address_x: felt,
+    address_y: felt,
 }
 
 // Represents the struct of data written to the program output for each Deposit.
@@ -123,12 +124,18 @@ func write_state_updates_to_output{
     // ? Write batched zero indexes to the output
     _write_zero_indexes_to_output{empty_output_ptr=empty_output_ptr}(zero_idxs_len, zero_idxs);
 
-    // %{
-    //     data_output_len = ids.empty_output_ptr - ids.data_output_start
+    %{
+        data_output_len = ids.empty_output_ptr - ids.data_output_start
+           
+        print(f"n_output_notes: {data_output_len}")
+    %}
 
-    // for i in range(data_output_len):
-    //         print(f"{memory[ids.data_output_start + i]},")
-    // %}
+    %{
+        data_output_len = ids.empty_output_ptr - ids.data_output_start
+
+        for i in range(data_output_len):
+            print(f"{memory[ids.data_output_start + i]},")
+    %}
 
     let data_output_len = empty_output_ptr - data_output_start;
     let (data_commitment: felt) = poseidon_hash_many(data_output_len, data_output_start);
@@ -566,6 +573,7 @@ func _write_new_note_to_output{
     let (comm: felt) = poseidon_hash(note.amount, note.blinding_factor);
     assert output[1] = comm;
     assert output[2] = note.address.x;
+    assert output[3] = note.address.y;
 
     let note_output_ptr = note_output_ptr + NoteDiffOutput.SIZE;
 
