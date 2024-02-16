@@ -182,17 +182,6 @@ func main{
     // print("idx: ", idx, "prev_val: ", prev_val, "new_val: ", new_val)
     // %}
 
-    %{
-        for i in range(ids.squashed_state_dict_len):
-            idx = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +0]
-
-            if idx == 2:
-                prev_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +1]
-                new_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +2]
-
-                print("idx: ", idx, "prev_val: ", prev_val, "new_val: ", new_val)
-    %}
-
     // * VERIFY MERKLE TREE UPDATES ******************************************************
     verify_merkle_tree_updates(
         global_config.dex_state.init_state_root,

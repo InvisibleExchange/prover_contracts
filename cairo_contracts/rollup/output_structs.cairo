@@ -44,8 +44,10 @@ struct WithdrawalTransactionOutput {
 
 struct AccumulatedHashesOutput {
     chain_id: felt,
-    deposit_hash: felt,
-    withdrawal_hash: felt,
+    prev_deposit_hash: felt,
+    new_deposit_hash: felt,
+    prev_withdrawal_hash: felt,
+    new_withdrawal_hash: felt,
 }
 
 // *********************************************************************************************************
@@ -124,18 +126,12 @@ func write_state_updates_to_output{
     // ? Write batched zero indexes to the output
     _write_zero_indexes_to_output{empty_output_ptr=empty_output_ptr}(zero_idxs_len, zero_idxs);
 
-    %{
-        data_output_len = ids.empty_output_ptr - ids.data_output_start
-           
-        print(f"n_output_notes: {data_output_len}")
-    %}
+    // %{
+    //     data_output_len = ids.empty_output_ptr - ids.data_output_start
 
-    %{
-        data_output_len = ids.empty_output_ptr - ids.data_output_start
-
-        for i in range(data_output_len):
-            print(f"{memory[ids.data_output_start + i]},")
-    %}
+    // for i in range(data_output_len):
+    //         print(f"{memory[ids.data_output_start + i]},")
+    // %}
 
     let data_output_len = empty_output_ptr - data_output_start;
     let (data_commitment: felt) = poseidon_hash_many(data_output_len, data_output_start);
@@ -186,6 +182,8 @@ func _write_state_updates_to_output_inner{
             );
         }
     }
+
+    // 0x013bbC069FdD066009e0701Fe9969d4dDf3c7e4E
 
     if (nondet %{ leaf_node_types[ids.idx] == "position" %} != 0) {
         if (leaf_hash != 0) {
@@ -362,20 +360,24 @@ func output_accumulated_hashes{
         return ();
     }
 
+    let chain_id: felt = chain_ids[0];
+
     // ? Get the accumulated hashes for the current chain
     let accumulated_deposit_hash = get_accumulated_deposit_hash(
-        chain_ids[0], deposit_outputs_len, deposit_outputs, 0
+        chain_id, deposit_outputs_len, deposit_outputs, 0
     );
     let accumulated_withdraw_hash = get_accumulated_withdraw_hash(
-        chain_ids[0], withdraw_outputs_len, withdraw_outputs, 0
+        chain_id, withdraw_outputs_len, withdraw_outputs, 0
     );
 
     // ? Write the accumulated hashes to the output
     let output: AccumulatedHashesOutput* = accumulated_hashes;
 
-    assert output.chain_id = chain_ids[0];
-    assert output.deposit_hash = accumulated_deposit_hash;
-    assert output.withdrawal_hash = accumulated_withdraw_hash;
+    assert output.chain_id = chain_id;
+    assert output.prev_deposit_hash = prev_accumulated_deposit_hash;
+    assert output.new_deposit_hash = accumulated_deposit_hash;
+    assert output.prev_withdrawal_hash = prev_accumulated_withdrawal_hash;
+    assert output.new_withdrawal_hash = accumulated_withdraw_hash;
 
     let accumulated_hashes = accumulated_hashes + AccumulatedHashesOutput.SIZE;
 
@@ -414,11 +416,21 @@ func get_accumulated_deposit_hash{range_check_ptr, poseidon_ptr: PoseidonBuiltin
         );
     }
 
-    let deposit_hash: felt = poseidon_hash(
-        deposit_output.batched_deposit_info, deposit_output.stark_key
-    );
+    // ? Get the Deposit hash
+    let (local input_arr: Uint256*) = alloc();
+    assert input_arr[0] = deposit_output.batched_deposit_info;
+    assert input_arr[1] = deposit_output.stark_key;
 
-    let accumulated_deposit_hash: felt = poseidon_hash(accumulated_deposit_hash, deposit_hash);
+    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
+    let deposit_hash = res.high * 2 ** 128 + res.low;
+
+    // ? Get the new accumulated withdrawals hash
+    let (local input_arr2: Uint256*) = alloc();
+    assert input_arr2[0] = accumulated_deposit_hash;
+    assert input_arr2[1] = deposit_hash;
+
+    let (res2: Uint256) = cairo_keccak_felts_bigend(2, input_arr2);
+    let accumulated_deposit_hash = res2.high * 2 ** 128 + res2.low;
 
     return get_accumulated_deposit_hash(
         chain_id,
@@ -453,11 +465,21 @@ func get_accumulated_withdraw_hash{range_check_ptr, poseidon_ptr: PoseidonBuilti
         );
     }
 
-    let withdraw_hash: felt = poseidon_hash(
-        withdraw_output.batched_withdraw_info, withdraw_output.withdraw_address
-    );
+    // ? Get the withdrawal hash
+    let (local input_arr: Uint256*) = alloc();
+    assert input_arr[0] = withdraw_output.batched_withdraw_info;
+    assert input_arr[1] = withdraw_output.withdraw_address;
 
-    let accumulated_withdraw_hash: felt = poseidon_hash(accumulated_withdraw_hash, withdraw_hash);
+    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
+    let withdraw_hash = res.high * 2 ** 128 + res.low;
+
+    // ? Get the new accumulated withdrawals hash
+    let (local input_arr2: Uint256*) = alloc();
+    assert input_arr2[0] = accumulated_withdraw_hash;
+    assert input_arr2[1] = withdraw_hash;
+
+    let (res2: Uint256) = cairo_keccak_felts_bigend(2, input_arr2);
+    let accumulated_withdraw_hash = res2.high * 2 ** 128 + res2.low;
 
     return get_accumulated_withdraw_hash(
         chain_id,

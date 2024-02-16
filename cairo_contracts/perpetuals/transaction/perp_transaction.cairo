@@ -412,11 +412,6 @@ func add_margin_to_position{
         position, init_margin, added_size, leverage, fee_taken
     );
 
-    %{
-        if ids.position.hash == 598345844227516041230339568462156132804121144810609493676183821408345703711:
-            print_position(ids.position.address_)
-    %}
-
     return (prev_position_hash, position);
 }
 

@@ -56,6 +56,7 @@ func execute_liquidation_order{
     %{ prev_position = current_order["position"] %}
     let position: PerpPosition = get_perp_position();
 
+    %{ open_order_field_inputs = current_order["open_order_fields"] %}
     local open_order_fields: OpenOrderFields;
     get_open_order_fields(&open_order_fields);
 
@@ -88,18 +89,15 @@ func execute_liquidation_order{
     // ? Check the position is liquidatable
     let (is_liquidatable: felt) = is_position_liquidatable(position, index_price);
     assert is_liquidatable = 1;
-    let (liquidatable_size: felt) = get_liquidatable_value(position, market_price);
+    let (liquidatable_size: felt, should_partially_liquidate: felt) = get_liquidatable_value(
+        position, market_price, funding_idx
+    );
 
     assert_le(1, liquidatable_size);  // ? liquidatable_size > 0
     assert_le(liquidatable_size, liquidation_order.synthetic_amount);
 
     // ? Liquidate position
-    let (min_partial_liq_size) = get_min_partial_liquidation_size(
-        position.position_header.synthetic_token
-    );
-    let cond1 = is_le(min_partial_liq_size, position.position_size);
-
-    if (position.position_header.allow_partial_liquidations * cond1 == 1) {
+    if (should_partially_liquidate == 1) {
         // ? Fully liquidate the position
         let (
             updated_position: PerpPosition, liquidator_fee: felt
@@ -207,8 +205,6 @@ func open_new_position{
 
     local position_idx: felt;
     %{ ids.position_idx = current_liquidation["indexes"]["new_position_index"] %}
-
-    // TODO: Check max leverage
 
     let (new_position: PerpPosition) = construct_new_position(
         liquidation_order.order_side,

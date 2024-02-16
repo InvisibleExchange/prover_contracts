@@ -157,7 +157,6 @@ func _get_pnl{range_check_ptr, global_config: GlobalConfig*}(
         collateral_decimals;
     let (multiplier: felt) = pow(10, decimal_conversion);
 
-
     if (order_side == 1) {
         // & Long position
         let is_pnl_positive = is_le(entry_price, mark_price);
@@ -198,7 +197,6 @@ func _get_leftover_value{range_check_ptr, global_config: GlobalConfig*}(
 ) -> felt {
     alloc_locals;
 
-
     let (p1: felt, _) = unsigned_div_rem(position_size * close_price, multiplier);
     let (p2: felt, _) = unsigned_div_rem(position_size * bankruptcy_price, multiplier);
     if (order_side == 1) {
@@ -212,6 +210,30 @@ func _get_leftover_value{range_check_ptr, global_config: GlobalConfig*}(
     }
 }
 
+func _should_partially_liquidate{range_check_ptr, global_config: GlobalConfig*}(
+    synthetic_token: felt,
+    position_size: felt,
+    order_side: felt,
+    allow_partial_liquidations: felt,
+    bankruptcy_price: felt,
+    market_price: felt,
+) -> felt {
+    alloc_locals;
+
+    let (min_partial_liq_size) = get_min_partial_liquidation_size(synthetic_token);
+    let sufficient_amount = is_le(min_partial_liq_size, position_size);
+    let is_partially_liquidatable = allow_partial_liquidations * sufficient_amount;
+
+    if (order_side == 1) {
+        let is_not_bankrupt = is_le(bankruptcy_price + 1, market_price);
+        return is_partially_liquidatable * is_not_bankrupt;
+    } else {
+        let is_not_bankrupt = is_le(market_price + 1, bankruptcy_price);
+        return is_partially_liquidatable * is_not_bankrupt;
+    }
+}
+
+// * UPDATE POSITION INFO * #
 func update_position_info{
     range_check_ptr, global_config: GlobalConfig*, poseidon_ptr: PoseidonBuiltin*
 }(

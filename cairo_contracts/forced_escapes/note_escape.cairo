@@ -66,11 +66,9 @@ func execute_forced_note_escape{
             escape_info.escape_notes_len, escape_info.escape_notes, EcPoint(0, 0)
         );
 
-        // let (valid: felt) = is_signature_valid(
-        //     escape_message_hash, pub_key_sum.x, signature_r, signature_s
-        // );
-
-        let valid: felt = TRUE;
+        let (valid: felt) = is_signature_valid(
+            escape_message_hash, pub_key_sum.x, signature_r, signature_s
+        );
 
         if (valid == FALSE) {
             write_escape_response_to_output(

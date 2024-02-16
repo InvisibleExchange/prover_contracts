@@ -3,12 +3,7 @@ from starkware.cairo.common.math import unsigned_div_rem, assert_le
 from starkware.cairo.common.math_cmp import is_not_zero, is_le
 from starkware.cairo.common.pow import pow
 
-from rollup.global_config import (
-    token_decimals,
-    price_decimals,
-    GlobalConfig,
-    get_min_partial_liquidation_size,
-)
+from rollup.global_config import token_decimals, price_decimals, GlobalConfig
 
 from perpetuals.order.order_structs import PerpPosition, PositionHeader
 
@@ -23,6 +18,7 @@ from perpetuals.order.order_helpers import (
     _get_bankruptcy_price,
     _get_pnl,
     _get_leftover_value,
+    _should_partially_liquidate,
     update_position_info,
 )
 
@@ -476,14 +472,21 @@ func get_liquidatable_value{
     range_check_ptr,
     funding_info: FundingInfo*,
     global_config: GlobalConfig*,
-}(position: PerpPosition, market_price: felt) -> (leftover_value: felt) {
+}(position: PerpPosition, market_price: felt, funding_idx: felt) -> (
+    leftover_value: felt, should_partially_liquidate: felt
+) {
     alloc_locals;
 
-    let (min_partial_liq_size) = get_min_partial_liquidation_size(
-        position.position_header.synthetic_token
+    let should_partially_liquidate = _should_partially_liquidate(
+        position.position_header.synthetic_token,
+        position.position_size,
+        position.order_side,
+        position.position_header.allow_partial_liquidations,
+        position.bankruptcy_price,
+        market_price,
     );
-    let cond1 = is_le(min_partial_liq_size, position.position_size);
-    if (position.position_header.allow_partial_liquidations * cond1 == 1) {
+
+    if (should_partially_liquidate == 1) {
         let (collateral_decimals) = token_decimals(global_config.collateral_token);
 
         let (synthetic_decimals: felt) = token_decimals(position.position_header.synthetic_token);
@@ -495,13 +498,16 @@ func get_liquidatable_value{
             collateral_decimals;
         let (multiplier: felt) = pow(10, decimal_conversion);
 
+        // & apply funding
+        let (margin_after_funding) = apply_funding(position, funding_idx);
+
         let im_rate = 67;  // 6.7 %
         let liquidator_fee_rate = 5;  // 0.5 %
 
         let price_delta = market_price - position.entry_price + 2 * position.order_side *
             position.entry_price - 2 * position.order_side * market_price;
 
-        let s1 = position.margin * multiplier;
+        let s1 = margin_after_funding * multiplier;
         let s2 = position.position_size * price_delta;
 
         let (new_size, _) = unsigned_div_rem(
@@ -510,9 +516,9 @@ func get_liquidatable_value{
 
         let liquidatable_size = position.position_size - new_size;
 
-        return (liquidatable_size,);
+        return (liquidatable_size, should_partially_liquidate);
     } else {
-        return (position.position_size,);
+        return (position.position_size, should_partially_liquidate);
     }
 }
 

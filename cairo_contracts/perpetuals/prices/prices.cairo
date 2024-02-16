@@ -145,11 +145,7 @@ func validate_price_in_range{
 
     let price_range: PriceRange = price_ranges[token_arr_idx];
 
-    %{
-        print("min: ", ids.price_range.min)
-        print("max: ", ids.price_range.max)
-    %}
-
+    // TODO
     // assert_le(price_range.min, price);
     // assert_le(price, price_range.max);
 
