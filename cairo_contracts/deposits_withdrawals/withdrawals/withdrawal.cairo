@@ -21,13 +21,18 @@ from rollup.output_structs import (
     ZeroOutput,
     WithdrawalTransactionOutput,
     write_withdrawal_info_to_output,
+    write_l2_withdrawal_info_to_output,
 )
+
+from rollup.global_config import GlobalConfig, verify_valid_chain_id
 
 func verify_withdrawal{
     poseidon_ptr: PoseidonBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
+    global_config: GlobalConfig*,
     withdraw_output_ptr: WithdrawalTransactionOutput*,
+    l2_withdrawal_outputs: WithdrawalTransactionOutput*,
     state_dict: DictAccess*,
     note_updates: Note*,
 }() {
@@ -35,12 +40,18 @@ func verify_withdrawal{
 
     // & This is the public on_chain withdraw information
     local withdrawal: Withdrawal;
+    local execution_gas_fee;
     %{
-        memory[ids.withdrawal.address_ + WITHDRAWAL_CHAIN_OFFSET] = int(current_withdrawal["withdrawal_chain"])
-        memory[ids.withdrawal.address_ + WITHDRAWAL_TOKEN_OFFSET] = int(current_withdrawal["withdrawal_token"])
-        memory[ids.withdrawal.address_ + WITHDRAWAL_AMOUNT_OFFSET] = int(current_withdrawal["withdrawal_amount"])
-        memory[ids.withdrawal.address_ + WITHDRAWAL_ADDRESS_OFFSET] = int(current_withdrawal["stark_key"])
+        memory[ids.withdrawal.address_ + WITHDRAWAL_CHAIN_OFFSET] = int(current_withdrawal["chain_id"])
+        memory[ids.withdrawal.address_ + WITHDRAWAL_TOKEN_OFFSET] = int(current_withdrawal["token"])
+        memory[ids.withdrawal.address_ + WITHDRAWAL_AMOUNT_OFFSET] = int(current_withdrawal["amount"])
+        memory[ids.withdrawal.address_ + WITHDRAWAL_ADDRESS_OFFSET] = int(current_withdrawal["recipient"])
+        memory[ids.withdrawal.address_ + WITHDRAWAL_GAS_FEE_OFFSET] = int(current_withdrawal["max_gas_fee"])
+
+        ids.execution_gas_fee = int(current_transaction["execution_gas_fee"])
     %}
+
+    verify_valid_chain_id(withdrawal.withdrawal_chain);
 
     let (
         withdraw_notes_len: felt, withdraw_notes: Note*, refund_note: Note
@@ -50,13 +61,18 @@ func verify_withdrawal{
     // & also verify all the notes were signed correctly
     verify_withdraw_notes(withdraw_notes_len, withdraw_notes, refund_note, withdrawal);
 
-    // Update the note dict
+    // ? assert the execution gas fee is less than max gas fee
+    assert_le(execution_gas_fee, withdrawal.max_gas_fee);
+
+    // ? Update the note dict
     withdraw_state_dict_updates(withdraw_notes_len, withdraw_notes, refund_note);
 
-    // Todo Should write empty notes to output
-
-    // write withdrawal info to the output
-    write_withdrawal_info_to_output(withdrawal);
-
-    return ();
+    // ? Write the withdrawal to the output
+    if (withdrawal.withdrawal_chain == global_config.chain_ids[0]) {
+        write_withdrawal_info_to_output(withdrawal, execution_gas_fee);
+        return ();
+    } else {
+        write_l2_withdrawal_info_to_output(withdrawal, execution_gas_fee);
+        return ();
+    }
 }

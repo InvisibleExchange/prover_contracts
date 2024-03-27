@@ -145,7 +145,7 @@ func _hash_register_message{poseidon_ptr: PoseidonBuiltin*, range_check_ptr}(
     assert arr[0] = position_hash;
     assert arr[1] = vlp_token;
 
-    let (hash) = poseidon_hash_many(3, arr);
+    let (hash) = poseidon_hash_many(2, arr);
 
     return hash;
 }

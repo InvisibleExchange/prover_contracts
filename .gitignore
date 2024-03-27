@@ -22,6 +22,7 @@ circomlib/test
 cairo_contracts/cli.txt
 cairo_contracts/tests
 cairo_contracts/transaction_batch/tx_batch_input.json
+cairo_contracts/transaction_batch/cairo_pie
 
 snarkjs_tests/
 

@@ -103,6 +103,11 @@ func main{
     %{ ids.global_config = segments.add() %}
     init_global_config(global_config);
 
+    let (local l2_deposit_outputs: DepositTransactionOutput*) = alloc();
+    let l2_deposit_outputs_start = l2_deposit_outputs;
+    let (local l2_withdrawal_outputs: WithdrawalTransactionOutput*) = alloc();
+    let l2_withdrawal_outputs_start = l2_withdrawal_outputs;
+
     // * SPLIT OUTPUT SECTIONS ******************************************************
 
     let (
@@ -135,6 +140,8 @@ func main{
         fee_tracker_dict=fee_tracker_dict,
         deposit_output_ptr=deposit_output_ptr,
         withdraw_output_ptr=withdraw_output_ptr,
+        l2_deposit_outputs=l2_deposit_outputs,
+        l2_withdrawal_outputs=l2_withdrawal_outputs,
         onchain_mm_action_output_ptr=onchain_mm_action_output_ptr,
         escape_output_ptr=escape_output_ptr,
         position_escape_output_ptr=position_escape_output_ptr,
@@ -160,8 +167,6 @@ func main{
     // prev_values[idx] = new_val
     // %}
 
-    finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
-
     local squashed_state_dict: DictAccess*;
     %{ ids.squashed_state_dict = segments.add() %}
     let (squashed_state_dict_end) = squash_dict(
@@ -172,15 +177,14 @@ func main{
     local squashed_state_dict_len = (squashed_state_dict_end - squashed_state_dict) /
         DictAccess.SIZE;
 
-    // %{
-    //     prev_values = {}
-    //     for i in range(ids.squashed_state_dict_len):
-    //         idx = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +0]
-    //         prev_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +1]
-    //         new_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +2]
+    %{
+        for i in range(ids.squashed_state_dict_len):
+            idx = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +0]
+            prev_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +1]
+            new_val = memory[ids.squashed_state_dict.address_ + i*ids.DictAccess.SIZE +2]
 
-    // print("idx: ", idx, "prev_val: ", prev_val, "new_val: ", new_val)
-    // %}
+            print("idx: ", idx, "prev_val: ", prev_val, "new_val: ", new_val)
+    %}
 
     // * VERIFY MERKLE TREE UPDATES ******************************************************
     verify_merkle_tree_updates(
@@ -208,13 +212,21 @@ func main{
     %{ print("da_output_ptr: ", ids.data_commitment) %}
 
     // * WRITE DEPOSIT AND WITHDRAWAL ACCUMULATED OUTPUTS TO THE PROGRAM OUTPUT ***********
-    let deposit_output_len = (deposit_output_ptr - deposit_output_ptr_start) /
+    let deposit_output_len = (l2_deposit_outputs - l2_deposit_outputs_start) /
         DepositTransactionOutput.SIZE;
-    let withdraw_output_len = (withdraw_output_ptr - withdraw_output_ptr_start) /
+    let withdraw_output_len = (l2_withdrawal_outputs - l2_withdrawal_outputs_start) /
         WithdrawalTransactionOutput.SIZE;
     write_accumulated_hashes_to_output{
-        accumulated_hashes=accumulated_hashes, global_config=global_config
-    }(deposit_output_len, deposit_output_ptr_start, withdraw_output_len, withdraw_output_ptr_start);
+        keccak_ptr=keccak_ptr, accumulated_hashes=accumulated_hashes, global_config=global_config
+    }(
+        deposit_output_len,
+        l2_deposit_outputs_start,
+        withdraw_output_len,
+        l2_withdrawal_outputs_start,
+    );
+
+    // * FINALIZE KECCAK ***************************************************************
+    finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
 
     local output_ptr: felt = cast(da_output_ptr + 1, felt);
 
@@ -236,6 +248,8 @@ func execute_transactions{
     fee_tracker_dict: DictAccess*,
     deposit_output_ptr: DepositTransactionOutput*,
     withdraw_output_ptr: WithdrawalTransactionOutput*,
+    l2_deposit_outputs: DepositTransactionOutput*,
+    l2_withdrawal_outputs: WithdrawalTransactionOutput*,
     onchain_mm_action_output_ptr: OnChainMMActionOutput*,
     escape_output_ptr: EscapeOutput*,
     position_escape_output_ptr: PositionEscapeOutput*,

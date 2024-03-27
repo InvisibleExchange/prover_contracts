@@ -2,9 +2,12 @@ from starkware.cairo.common.cairo_builtins import PoseidonBuiltin, BitwiseBuilti
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash, poseidon_hash_many
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math import unsigned_div_rem, split_felt
+from starkware.cairo.common.math_cmp import is_not_zero
 from starkware.cairo.common.dict_access import DictAccess
 from starkware.cairo.common.bitwise import bitwise_xor, bitwise_and
 from starkware.cairo.common.registers import get_fp_and_pc
+from starkware.cairo.common.cairo_keccak.keccak import cairo_keccak_felts_bigend
+from starkware.cairo.common.uint256 import Uint256
 
 from helpers.utils import Note
 from deposits_withdrawals.deposits.deposit_utils import Deposit
@@ -37,17 +40,15 @@ struct DepositTransactionOutput {
 
 // Represents the struct of data written to the program output for each Withdrawal.
 struct WithdrawalTransactionOutput {
-    // & batched_note_info format: | withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
+    // & batched_note_info format: | is_automatic (8 bits) | withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
     batched_withdraw_info: felt,
     withdraw_address: felt,  // This should be the eth address to withdraw from
 }
 
 struct AccumulatedHashesOutput {
     chain_id: felt,
-    prev_deposit_hash: felt,
-    new_deposit_hash: felt,
-    prev_withdrawal_hash: felt,
-    new_withdrawal_hash: felt,
+    accumulated_deposit_hash: felt,
+    accumulated_withdrawal_hash: felt,
 }
 
 // *********************************************************************************************************
@@ -139,147 +140,6 @@ func write_state_updates_to_output{
     return (data_commitment,);
 }
 
-func _write_state_updates_to_output_inner{
-    poseidon_ptr: PoseidonBuiltin*,
-    range_check_ptr,
-    bitwise_ptr: BitwiseBuiltin*,
-    note_output_ptr: felt*,
-    position_output_ptr: felt*,
-    tab_output_ptr: felt*,
-}(
-    state_dict_start: DictAccess*,
-    n_state_outputs: felt,
-    note_outputs: Note*,
-    zero_idxs_len: felt,
-    zero_idxs: felt*,
-) -> (zero_idxs_len: felt, zero_idxs: felt*) {
-    alloc_locals;
-
-    if (n_state_outputs == 0) {
-        // ? Write zero outputs
-
-        return (zero_idxs_len, zero_idxs);
-    }
-
-    let idx: felt = state_dict_start.key;
-    let leaf_hash: felt = state_dict_start.new_value;
-
-    if (nondet %{ leaf_node_types[ids.idx] == "note" %} != 0) {
-        if (leaf_hash != 0) {
-            write_note_update(note_outputs, idx, leaf_hash);
-
-            let state_dict_start = state_dict_start + DictAccess.SIZE;
-            return _write_state_updates_to_output_inner(
-                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
-            );
-        } else {
-            assert zero_idxs[zero_idxs_len] = idx;
-            let zero_idxs_len = zero_idxs_len + 1;
-
-            let state_dict_start = state_dict_start + DictAccess.SIZE;
-            return _write_state_updates_to_output_inner(
-                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
-            );
-        }
-    }
-
-    // 0x013bbC069FdD066009e0701Fe9969d4dDf3c7e4E
-
-    if (nondet %{ leaf_node_types[ids.idx] == "position" %} != 0) {
-        if (leaf_hash != 0) {
-            write_position_update(idx, leaf_hash);
-
-            let state_dict_start = state_dict_start + DictAccess.SIZE;
-            return _write_state_updates_to_output_inner(
-                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
-            );
-        } else {
-            assert zero_idxs[zero_idxs_len] = idx;
-            let zero_idxs_len = zero_idxs_len + 1;
-
-            let state_dict_start = state_dict_start + DictAccess.SIZE;
-            return _write_state_updates_to_output_inner(
-                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
-            );
-        }
-    }
-
-    if (nondet %{ leaf_node_types[ids.idx] == "order_tab" %} != 0) {
-        if (leaf_hash != 0) {
-            write_order_tab_update(idx, leaf_hash);
-
-            let state_dict_start = state_dict_start + DictAccess.SIZE;
-            return _write_state_updates_to_output_inner(
-                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
-            );
-        } else {
-            assert zero_idxs[zero_idxs_len] = idx;
-            let zero_idxs_len = zero_idxs_len + 1;
-
-            let state_dict_start = state_dict_start + DictAccess.SIZE;
-            return _write_state_updates_to_output_inner(
-                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
-            );
-        }
-    }
-
-    return (zero_idxs_len, zero_idxs);
-}
-
-// ?: Loop backwards through the notes array and write the last update for each index to the program output
-func write_note_update{
-    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: felt*
-}(note_outputs: Note*, idx: felt, hash: felt) {
-    alloc_locals;
-
-    local array_position_idx: felt;
-    %{ ids.array_position_idx = int(note_output_idxs[ids.idx]) %}
-
-    let note_ouput: Note = note_outputs[array_position_idx];
-    assert note_ouput.hash = hash;
-
-    _write_new_note_to_output(note_ouput, idx);
-
-    return ();
-}
-
-func write_position_update{
-    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, position_output_ptr: felt*
-}(idx: felt, hash: felt) {
-    alloc_locals;
-
-    local position: PerpPosition;
-    %{ read_output_position(ids.position.address_, ids.idx) %}
-
-    verify_position_hash(position);
-    assert position.hash = hash;
-
-    _write_position_info_to_output(position, idx);
-
-    return ();
-}
-
-func write_order_tab_update{
-    poseidon_ptr: PoseidonBuiltin*,
-    range_check_ptr,
-    bitwise_ptr: BitwiseBuiltin*,
-    tab_output_ptr: felt*,
-}(idx: felt, hash: felt) {
-    alloc_locals;
-
-    // let (__fp__, _) = get_fp_and_pc();
-
-    local order_tab: OrderTab;
-    %{ read_output_order_tab(ids.order_tab.address_, ids.idx) %}
-
-    verify_order_tab_hash(order_tab);
-    assert order_tab.hash = hash;
-
-    _write_order_tab_info_to_output(order_tab, idx);
-
-    return ();
-}
-
 // * ================================================================================================================================================================
 // * DEPOSITS/WITHDRAWALS * //
 
@@ -304,15 +164,17 @@ func write_withdrawal_info_to_output{
     range_check_ptr,
     poseidon_ptr: PoseidonBuiltin*,
     withdraw_output_ptr: WithdrawalTransactionOutput*,
-}(withdrawal: Withdrawal) {
+}(withdrawal: Withdrawal, execution_gas_fee: felt) {
     alloc_locals;
 
-    // & batched_note_info format: | withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
+    // & batched_note_info format: | is_automatic (8 bits) |  withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
     let output: WithdrawalTransactionOutput* = withdraw_output_ptr;
 
+    let is_automatic = is_not_zero(execution_gas_fee);
+
     assert output.batched_withdraw_info = (
-        (withdrawal.withdrawal_chain * 2 ** 32) + withdrawal.token
-    ) * 2 ** 64 + withdrawal.amount;
+        ((is_automatic * 2 ** 32 + withdrawal.withdrawal_chain) * 2 ** 32) + withdrawal.token
+    ) * 2 ** 64 + (withdrawal.amount - execution_gas_fee);
     assert output.withdraw_address = withdrawal.withdrawal_address;
 
     let withdraw_output_ptr = withdraw_output_ptr + WithdrawalTransactionOutput.SIZE;
@@ -320,172 +182,69 @@ func write_withdrawal_info_to_output{
     return ();
 }
 
-func write_accumulated_hashes_to_output{
-    range_check_ptr,
-    poseidon_ptr: PoseidonBuiltin*,
-    accumulated_hashes: AccumulatedHashesOutput*,
-    global_config: GlobalConfig*,
-}(
-    deposit_outputs_len: felt,
-    deposit_outputs: DepositTransactionOutput*,
-    withdraw_outputs_len: felt,
-    withdraw_outputs: WithdrawalTransactionOutput*,
-) {
-    return output_accumulated_hashes(
-        global_config.chain_ids_len,
-        global_config.chain_ids,
-        deposit_outputs_len,
-        deposit_outputs,
-        withdraw_outputs_len,
-        withdraw_outputs,
-    );
-}
+//
 
-func output_accumulated_hashes{
-    range_check_ptr,
-    poseidon_ptr: PoseidonBuiltin*,
-    accumulated_hashes: AccumulatedHashesOutput*,
-    global_config: GlobalConfig*,
-}(
-    chain_ids_len: felt,
-    chain_ids: felt*,
-    deposit_outputs_len: felt,
-    deposit_outputs: DepositTransactionOutput*,
-    withdraw_outputs_len: felt,
-    withdraw_outputs: WithdrawalTransactionOutput*,
-) {
+func write_l2_deposit_info_to_output{
+    poseidon_ptr: PoseidonBuiltin*, range_check_ptr, l2_deposit_outputs: DepositTransactionOutput*
+}(deposit: Deposit) {
     alloc_locals;
-
-    if (chain_ids_len == 0) {
-        return ();
-    }
-
-    let chain_id: felt = chain_ids[0];
-
-    // ? Get the accumulated hashes for the current chain
-    let accumulated_deposit_hash = get_accumulated_deposit_hash(
-        chain_id, deposit_outputs_len, deposit_outputs, 0
-    );
-    let accumulated_withdraw_hash = get_accumulated_withdraw_hash(
-        chain_id, withdraw_outputs_len, withdraw_outputs, 0
-    );
-
-    // ? Write the accumulated hashes to the output
-    let output: AccumulatedHashesOutput* = accumulated_hashes;
-
-    assert output.chain_id = chain_id;
-    assert output.prev_deposit_hash = prev_accumulated_deposit_hash;
-    assert output.new_deposit_hash = accumulated_deposit_hash;
-    assert output.prev_withdrawal_hash = prev_accumulated_withdrawal_hash;
-    assert output.new_withdrawal_hash = accumulated_withdraw_hash;
-
-    let accumulated_hashes = accumulated_hashes + AccumulatedHashesOutput.SIZE;
-
-    return output_accumulated_hashes(
-        chain_ids_len - 1,
-        &chain_ids[1],
-        deposit_outputs_len,
-        deposit_outputs,
-        withdraw_outputs_len,
-        withdraw_outputs,
-    );
-}
-
-func get_accumulated_deposit_hash{range_check_ptr, poseidon_ptr: PoseidonBuiltin*}(
-    chain_id: felt,
-    deposit_outputs_len: felt,
-    deposit_outputs: DepositTransactionOutput*,
-    accumulated_deposit_hash: felt,
-) -> felt {
-    if (deposit_outputs_len == 0) {
-        return accumulated_deposit_hash;
-    }
-
-    let deposit_output: DepositTransactionOutput = deposit_outputs[0];
 
     // & batched_note_info format: | deposit_id (64 bits) | token (32 bits) | amount (64 bits) |
     // & --------------------------  deposit_id => chain id (32 bits) | identifier (32 bits) |
-    let (deposit_chain_id, _) = split_felt(deposit_output.batched_deposit_info);
+    let output: DepositTransactionOutput* = l2_deposit_outputs;
+    assert output.batched_deposit_info = ((deposit.deposit_id * 2 ** 32) + deposit.token) * 2 **
+        64 + deposit.amount;
+    assert output.stark_key = deposit.deposit_address;
 
-    if (deposit_chain_id != chain_id) {
-        return get_accumulated_deposit_hash(
-            chain_id,
-            deposit_outputs_len - 1,
-            deposit_outputs + DepositTransactionOutput.SIZE,
-            accumulated_deposit_hash,
-        );
-    }
+    let l2_deposit_outputs = l2_deposit_outputs + DepositTransactionOutput.SIZE;
 
-    // ? Get the Deposit hash
-    let (local input_arr: Uint256*) = alloc();
-    assert input_arr[0] = deposit_output.batched_deposit_info;
-    assert input_arr[1] = deposit_output.stark_key;
-
-    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
-    let deposit_hash = res.high * 2 ** 128 + res.low;
-
-    // ? Get the new accumulated withdrawals hash
-    let (local input_arr2: Uint256*) = alloc();
-    assert input_arr2[0] = accumulated_deposit_hash;
-    assert input_arr2[1] = deposit_hash;
-
-    let (res2: Uint256) = cairo_keccak_felts_bigend(2, input_arr2);
-    let accumulated_deposit_hash = res2.high * 2 ** 128 + res2.low;
-
-    return get_accumulated_deposit_hash(
-        chain_id,
-        deposit_outputs_len - 1,
-        deposit_outputs + DepositTransactionOutput.SIZE,
-        accumulated_deposit_hash,
-    );
+    return ();
 }
 
-func get_accumulated_withdraw_hash{range_check_ptr, poseidon_ptr: PoseidonBuiltin*}(
-    chain_id: felt,
-    withdraw_outputs_len: felt,
-    withdraw_outputs: WithdrawalTransactionOutput*,
-    accumulated_withdraw_hash: felt,
-) -> felt {
-    if (withdraw_outputs_len == 0) {
-        return accumulated_withdraw_hash;
-    }
+func write_l2_withdrawal_info_to_output{
+    range_check_ptr,
+    poseidon_ptr: PoseidonBuiltin*,
+    l2_withdrawal_outputs: WithdrawalTransactionOutput*,
+}(withdrawal: Withdrawal, execution_gas_fee: felt) {
+    alloc_locals;
 
-    let withdraw_output: WithdrawalTransactionOutput = withdraw_outputs[0];
+    // & batched_note_info format: | is_automatic (8 bits) | withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
+    let output: WithdrawalTransactionOutput* = l2_withdrawal_outputs;
 
-    // & batched_note_info format: | withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
-    let devisor: felt = 2 ** 96;
-    let (withdraw_chain_id, _) = unsigned_div_rem(withdraw_output.batched_withdraw_info, devisor);
+    let is_automatic = is_not_zero(execution_gas_fee);
 
-    if (withdraw_chain_id != chain_id) {
-        return get_accumulated_withdraw_hash(
-            chain_id,
-            withdraw_outputs_len - 1,
-            withdraw_outputs + WithdrawalTransactionOutput.SIZE,
-            accumulated_withdraw_hash,
-        );
-    }
+    assert output.batched_withdraw_info = (
+        ((is_automatic * 2 ** 32 + withdrawal.withdrawal_chain) * 2 ** 32) + withdrawal.token
+    ) * 2 ** 64 + (withdrawal.amount - execution_gas_fee);
+    assert output.withdraw_address = withdrawal.withdrawal_address;
 
-    // ? Get the withdrawal hash
-    let (local input_arr: Uint256*) = alloc();
-    assert input_arr[0] = withdraw_output.batched_withdraw_info;
-    assert input_arr[1] = withdraw_output.withdraw_address;
+    let l2_withdrawal_outputs = l2_withdrawal_outputs + WithdrawalTransactionOutput.SIZE;
 
-    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
-    let withdraw_hash = res.high * 2 ** 128 + res.low;
+    return ();
+}
 
-    // ? Get the new accumulated withdrawals hash
-    let (local input_arr2: Uint256*) = alloc();
-    assert input_arr2[0] = accumulated_withdraw_hash;
-    assert input_arr2[1] = withdraw_hash;
+// * ================================================================================================================================================================
 
-    let (res2: Uint256) = cairo_keccak_felts_bigend(2, input_arr2);
-    let accumulated_withdraw_hash = res2.high * 2 ** 128 + res2.low;
-
-    return get_accumulated_withdraw_hash(
-        chain_id,
-        withdraw_outputs_len - 1,
-        withdraw_outputs + WithdrawalTransactionOutput.SIZE,
-        accumulated_withdraw_hash,
+func write_accumulated_hashes_to_output{
+    range_check_ptr,
+    poseidon_ptr: PoseidonBuiltin*,
+    bitwise_ptr: BitwiseBuiltin*,
+    keccak_ptr: felt*,
+    accumulated_hashes: AccumulatedHashesOutput*,
+    global_config: GlobalConfig*,
+}(
+    l2_deposit_outputs_len: felt,
+    l2_deposit_outputs: DepositTransactionOutput*,
+    l2_withdrawal_outputs_len: felt,
+    l2_withdrawal_outputs: WithdrawalTransactionOutput*,
+) {
+    return output_accumulated_hashes(
+        global_config.chain_ids_len - 1,
+        &global_config.chain_ids[1],
+        l2_deposit_outputs_len,
+        l2_deposit_outputs,
+        l2_withdrawal_outputs_len,
+        l2_withdrawal_outputs,
     );
 }
 
@@ -574,6 +333,325 @@ func write_mm_close_to_output{
     let onchain_mm_action_output_ptr = onchain_mm_action_output_ptr + OnChainMMActionOutput.SIZE;
 
     return ();
+}
+
+// ! ================================================================================================================================================================
+// * ================================================================================================================================================================
+// * ================================================================================================================================================================
+// * ================================================================================================================================================================
+// * ================================================================================================================================================================
+// * ================================================================================================================================================================
+// ! ================================================================================================================================================================
+// HELPERS
+
+// * ================================================================================================================================================================0
+// * STATE * //
+
+func _write_state_updates_to_output_inner{
+    poseidon_ptr: PoseidonBuiltin*,
+    range_check_ptr,
+    bitwise_ptr: BitwiseBuiltin*,
+    note_output_ptr: felt*,
+    position_output_ptr: felt*,
+    tab_output_ptr: felt*,
+}(
+    state_dict_start: DictAccess*,
+    n_state_outputs: felt,
+    note_outputs: Note*,
+    zero_idxs_len: felt,
+    zero_idxs: felt*,
+) -> (zero_idxs_len: felt, zero_idxs: felt*) {
+    alloc_locals;
+
+    if (n_state_outputs == 0) {
+        // ? Write zero outputs
+
+        return (zero_idxs_len, zero_idxs);
+    }
+
+    let idx: felt = state_dict_start.key;
+    let leaf_hash: felt = state_dict_start.new_value;
+
+    if (nondet %{ leaf_node_types[ids.idx] == "note" %} != 0) {
+        if (leaf_hash != 0) {
+            write_note_update(note_outputs, idx, leaf_hash);
+
+            let state_dict_start = state_dict_start + DictAccess.SIZE;
+            return _write_state_updates_to_output_inner(
+                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
+            );
+        } else {
+            assert zero_idxs[zero_idxs_len] = idx;
+            let zero_idxs_len = zero_idxs_len + 1;
+
+            let state_dict_start = state_dict_start + DictAccess.SIZE;
+            return _write_state_updates_to_output_inner(
+                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
+            );
+        }
+    }
+
+    if (nondet %{ leaf_node_types[ids.idx] == "position" %} != 0) {
+        if (leaf_hash != 0) {
+            write_position_update(idx, leaf_hash);
+
+            let state_dict_start = state_dict_start + DictAccess.SIZE;
+            return _write_state_updates_to_output_inner(
+                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
+            );
+        } else {
+            assert zero_idxs[zero_idxs_len] = idx;
+            let zero_idxs_len = zero_idxs_len + 1;
+
+            let state_dict_start = state_dict_start + DictAccess.SIZE;
+            return _write_state_updates_to_output_inner(
+                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
+            );
+        }
+    }
+
+    if (nondet %{ leaf_node_types[ids.idx] == "order_tab" %} != 0) {
+        if (leaf_hash != 0) {
+            write_order_tab_update(idx, leaf_hash);
+
+            let state_dict_start = state_dict_start + DictAccess.SIZE;
+            return _write_state_updates_to_output_inner(
+                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
+            );
+        } else {
+            assert zero_idxs[zero_idxs_len] = idx;
+            let zero_idxs_len = zero_idxs_len + 1;
+
+            let state_dict_start = state_dict_start + DictAccess.SIZE;
+            return _write_state_updates_to_output_inner(
+                state_dict_start, n_state_outputs - 1, note_outputs, zero_idxs_len, zero_idxs
+            );
+        }
+    }
+
+    return (zero_idxs_len, zero_idxs);
+}
+
+// * Helpers
+
+// ?: Loop backwards through the notes array and write the last update for each index to the program output
+func write_note_update{
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, note_output_ptr: felt*
+}(note_outputs: Note*, idx: felt, hash: felt) {
+    alloc_locals;
+
+    local array_position_idx: felt;
+    %{ ids.array_position_idx = int(note_output_idxs[ids.idx]) %}
+
+    let note_ouput: Note = note_outputs[array_position_idx];
+    assert note_ouput.hash = hash;
+
+    _write_new_note_to_output(note_ouput, idx);
+
+    return ();
+}
+
+func write_position_update{
+    poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, position_output_ptr: felt*
+}(idx: felt, hash: felt) {
+    alloc_locals;
+
+    local position: PerpPosition;
+    %{ read_output_position(ids.position.address_, ids.idx) %}
+
+    verify_position_hash(position);
+    assert position.hash = hash;
+
+    _write_position_info_to_output(position, idx);
+
+    return ();
+}
+
+func write_order_tab_update{
+    poseidon_ptr: PoseidonBuiltin*,
+    range_check_ptr,
+    bitwise_ptr: BitwiseBuiltin*,
+    tab_output_ptr: felt*,
+}(idx: felt, hash: felt) {
+    alloc_locals;
+
+    // let (__fp__, _) = get_fp_and_pc();
+
+    local order_tab: OrderTab;
+    %{ read_output_order_tab(ids.order_tab.address_, ids.idx) %}
+
+    verify_order_tab_hash(order_tab);
+    assert order_tab.hash = hash;
+
+    _write_order_tab_info_to_output(order_tab, idx);
+
+    return ();
+}
+
+// * ================================================================================================================================================================
+// * DEPOSITS/WITHDRAWALS * //
+
+func output_accumulated_hashes{
+    range_check_ptr,
+    poseidon_ptr: PoseidonBuiltin*,
+    bitwise_ptr: BitwiseBuiltin*,
+    keccak_ptr: felt*,
+    accumulated_hashes: AccumulatedHashesOutput*,
+    global_config: GlobalConfig*,
+}(
+    chain_ids_len: felt,
+    chain_ids: felt*,
+    deposit_outputs_len: felt,
+    deposit_outputs: DepositTransactionOutput*,
+    withdraw_outputs_len: felt,
+    withdraw_outputs: WithdrawalTransactionOutput*,
+) {
+    alloc_locals;
+
+    if (chain_ids_len == 0) {
+        return ();
+    }
+
+    let chain_id: felt = chain_ids[0];
+
+    // ? Get the accumulated hashes for the current chain
+    let accumulated_deposit_hash = get_accumulated_deposit_hash(
+        chain_id, deposit_outputs_len, deposit_outputs, 0
+    );
+    let accumulated_withdraw_hash = get_accumulated_withdraw_hash(
+        chain_id, withdraw_outputs_len, withdraw_outputs, 0
+    );
+
+    %{
+        print(f"chain_id: {ids.chain_id}")
+        print(f"accumulated_deposit_hash: {ids.accumulated_deposit_hash}")
+        print(f"accumulated_withdraw_hash: {ids.accumulated_withdraw_hash}")
+    %}
+
+    // ? Write the accumulated hashes to the output
+    let output: AccumulatedHashesOutput* = accumulated_hashes;
+
+    assert output.chain_id = chain_id;
+    assert output.accumulated_deposit_hash = accumulated_deposit_hash;
+    assert output.accumulated_withdrawal_hash = accumulated_withdraw_hash;
+
+    let accumulated_hashes = accumulated_hashes + AccumulatedHashesOutput.SIZE;
+
+    return output_accumulated_hashes(
+        chain_ids_len - 1,
+        &chain_ids[1],
+        deposit_outputs_len,
+        deposit_outputs,
+        withdraw_outputs_len,
+        withdraw_outputs,
+    );
+}
+
+func get_accumulated_deposit_hash{
+    range_check_ptr, poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, keccak_ptr: felt*
+}(
+    chain_id: felt,
+    deposit_outputs_len: felt,
+    deposit_outputs: DepositTransactionOutput*,
+    accumulated_deposit_hash: felt,
+) -> felt {
+    alloc_locals;
+
+    if (deposit_outputs_len == 0) {
+        return accumulated_deposit_hash;
+    }
+
+    let deposit_output: DepositTransactionOutput = deposit_outputs[0];
+
+    // & batched_note_info format: | deposit_id (64 bits) | token (32 bits) | amount (64 bits) |
+    // & --------------------------  deposit_id => chain id (32 bits) | identifier (32 bits) |
+    let (deposit_chain_id, _) = split_felt(deposit_output.batched_deposit_info);
+
+    if (deposit_chain_id != chain_id) {
+        return get_accumulated_deposit_hash(
+            chain_id,
+            deposit_outputs_len - 1,
+            deposit_outputs + DepositTransactionOutput.SIZE,
+            accumulated_deposit_hash,
+        );
+    }
+
+    // ? Get the Deposit hash
+    let (local input_arr: felt*) = alloc();
+    assert input_arr[0] = deposit_output.batched_deposit_info;
+    assert input_arr[1] = deposit_output.stark_key;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
+    let deposit_hash = res.high * 2 ** 128 + res.low;
+
+    // ? Get the new accumulated withdrawals hash
+    let (local input_arr2: felt*) = alloc();
+    assert input_arr2[0] = accumulated_deposit_hash;
+    assert input_arr2[1] = deposit_hash;
+
+    let (res2: Uint256) = cairo_keccak_felts_bigend(2, input_arr2);
+    let accumulated_deposit_hash = res2.high * 2 ** 128 + res2.low;
+
+    return get_accumulated_deposit_hash(
+        chain_id,
+        deposit_outputs_len - 1,
+        deposit_outputs + DepositTransactionOutput.SIZE,
+        accumulated_deposit_hash,
+    );
+}
+
+func get_accumulated_withdraw_hash{
+    range_check_ptr, poseidon_ptr: PoseidonBuiltin*, bitwise_ptr: BitwiseBuiltin*, keccak_ptr: felt*
+}(
+    chain_id: felt,
+    withdraw_outputs_len: felt,
+    withdraw_outputs: WithdrawalTransactionOutput*,
+    accumulated_withdraw_hash: felt,
+) -> felt {
+    alloc_locals;
+
+    if (withdraw_outputs_len == 0) {
+        return accumulated_withdraw_hash;
+    }
+
+    let withdraw_output: WithdrawalTransactionOutput = withdraw_outputs[0];
+
+    // & batched_note_info format: | is_automatic (8 bits) | withdrawal_chain_id (32 bits) | token (32 bits) | amount (64 bits) |
+    let devisor: felt = 2 ** 96;
+    let (result, _) = unsigned_div_rem(withdraw_output.batched_withdraw_info, devisor);
+    let (is_automatic, withdraw_chain_id) = unsigned_div_rem(result, 2 ** 32);
+
+    if (withdraw_chain_id != chain_id) {
+        return get_accumulated_withdraw_hash(
+            chain_id,
+            withdraw_outputs_len - 1,
+            withdraw_outputs + WithdrawalTransactionOutput.SIZE,
+            accumulated_withdraw_hash,
+        );
+    }
+
+    // ? Get the withdrawal hash
+    let (local input_arr: felt*) = alloc();
+    assert input_arr[0] = withdraw_output.batched_withdraw_info;
+    assert input_arr[1] = withdraw_output.withdraw_address;
+
+    let (res: Uint256) = cairo_keccak_felts_bigend(2, input_arr);
+    let withdraw_hash = res.high * 2 ** 128 + res.low;
+
+    // ? Get the new accumulated withdrawals hash
+    let (local input_arr2: felt*) = alloc();
+    assert input_arr2[0] = accumulated_withdraw_hash;
+    assert input_arr2[1] = withdraw_hash;
+
+    let (res2: Uint256) = cairo_keccak_felts_bigend(2, input_arr2);
+    let accumulated_withdraw_hash = res2.high * 2 ** 128 + res2.low;
+
+    return get_accumulated_withdraw_hash(
+        chain_id,
+        withdraw_outputs_len - 1,
+        withdraw_outputs + WithdrawalTransactionOutput.SIZE,
+        accumulated_withdraw_hash,
+    );
 }
 
 // * ================================================================================================================================================================

@@ -14,6 +14,7 @@ struct Withdrawal {
     token: felt,
     amount: felt,
     withdrawal_address: felt,  // This should be the eth address to withdraw from
+    max_gas_fee: felt,
 }
 
 // & Gets the notes that the user wants to spend as the input
@@ -82,22 +83,11 @@ func withdraw_tx_hash{poseidon_ptr: PoseidonBuiltin*}(
     assert note_hashes[note_hashes_len] = refund_hash;
     assert note_hashes[note_hashes_len + 1] = withdrawal.withdrawal_address;
     assert note_hashes[note_hashes_len + 2] = withdrawal.withdrawal_chain;
+    assert note_hashes[note_hashes_len + 3] = withdrawal.max_gas_fee;
 
-    let (res) = poseidon_hash_many(note_hashes_len + 3, note_hashes);
+    let (res) = poseidon_hash_many(note_hashes_len + 4, note_hashes);
 
     return (res,);
-
-    // let hash_ptr = pedersen_ptr;
-    // with hash_ptr {
-    //     let (hash_state_ptr) = hash_init();
-    //     let (hash_state_ptr) = hash_update(hash_state_ptr, note_hashes, note_hashes_len);
-    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, refund_hash);
-    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, withdrawal.withdrawal_address);
-    //     let (hash_state_ptr) = hash_update_single(hash_state_ptr, withdrawal.withdrawal_chain);
-    //     let (res) = hash_finalize(hash_state_ptr);
-    //     let pedersen_ptr = hash_ptr;
-    //     return (res=res);
-    // }
 }
 
 func handle_inputs(notes_len: felt*, notes: Note**, refund_note: Note*) {
@@ -109,7 +99,7 @@ func handle_inputs(notes_len: felt*, notes: Note**, refund_note: Note*) {
         for i, note in enumerate(withdraw_notes):
             memory[notes + i*NOTE_SIZE + ADDRESS_OFFSET+0] = int(note["address"]["x"])
             memory[notes + i*NOTE_SIZE + ADDRESS_OFFSET+1] = int(note["address"]["y"])
-            memory[notes + i*NOTE_SIZE + TOKEN_OFFSET] = int(current_withdrawal["withdrawal_token"])
+            memory[notes + i*NOTE_SIZE + TOKEN_OFFSET] = int(current_withdrawal["token"])
             memory[notes + i*NOTE_SIZE + AMOUNT_OFFSET] = int(note["amount"])
             memory[notes + i*NOTE_SIZE + BLINDING_FACTOR_OFFSET] = int(note["blinding"])
             memory[notes + i*NOTE_SIZE + INDEX_OFFSET] = int(note["index"])
@@ -121,7 +111,7 @@ func handle_inputs(notes_len: felt*, notes: Note**, refund_note: Note*) {
         if refund_note__ is not None:
             memory[ids.refund_note.address_ + ADDRESS_OFFSET+0] = int(refund_note__["address"]["x"])
             memory[ids.refund_note.address_ + ADDRESS_OFFSET+1] = int(refund_note__["address"]["y"])
-            memory[ids.refund_note.address_ + TOKEN_OFFSET] = int(current_withdrawal["withdrawal_token"])
+            memory[ids.refund_note.address_ + TOKEN_OFFSET] = int(current_withdrawal["token"])
             memory[ids.refund_note.address_ + AMOUNT_OFFSET] = int(refund_note__["amount"])
             memory[ids.refund_note.address_ + BLINDING_FACTOR_OFFSET] = int(refund_note__["blinding"])
             memory[ids.refund_note.address_ + INDEX_OFFSET] = int(refund_note__["index"])

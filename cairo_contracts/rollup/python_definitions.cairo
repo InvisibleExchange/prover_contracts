@@ -93,6 +93,7 @@ func python_define_utils() {
         WITHDRAWAL_TOKEN_OFFSET = ids.Withdrawal.token
         WITHDRAWAL_AMOUNT_OFFSET = ids.Withdrawal.amount
         WITHDRAWAL_ADDRESS_OFFSET = ids.Withdrawal.withdrawal_address
+        WITHDRAWAL_GAS_FEE_OFFSET = ids.Withdrawal.max_gas_fee
 
         # * DEPOSIT  ==================================================================
         DEPOSIT_SIZE = ids.Deposit.SIZE

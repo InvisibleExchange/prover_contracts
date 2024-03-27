@@ -36,7 +36,7 @@ func partition_output{output_ptr, range_check_ptr, poseidon_ptr: PoseidonBuiltin
     );
     // ? Deposits
     local deposit_output_ptr: DepositTransactionOutput* = cast(
-        accumulated_hashes + global_config.chain_ids_len * AccumulatedHashesOutput.SIZE,
+        accumulated_hashes + (global_config.chain_ids_len - 1) * AccumulatedHashesOutput.SIZE,
         DepositTransactionOutput*,
     );
     // ? Withdrawals

@@ -9,9 +9,14 @@ from deposits_withdrawals.deposits.deposit_utils import (
     get_deposit_notes,
     verify_deposit_notes,
 )
+from starkware.cairo.common.math import unsigned_div_rem
 from helpers.spot_helpers.dict_updates import deposit_state_dict_updates
 
-from rollup.output_structs import DepositTransactionOutput, write_deposit_info_to_output
+from rollup.output_structs import (
+    DepositTransactionOutput,
+    write_deposit_info_to_output,
+    write_l2_deposit_info_to_output,
+)
 
 from rollup.global_config import GlobalConfig
 
@@ -20,6 +25,7 @@ func verify_deposit{
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*,
     deposit_output_ptr: DepositTransactionOutput*,
+    l2_deposit_outputs: DepositTransactionOutput*,
     state_dict: DictAccess*,
     note_updates: Note*,
     global_config: GlobalConfig*,
@@ -46,8 +52,13 @@ func verify_deposit{
     // Update the note dict
     deposit_state_dict_updates(deposit_notes_len, deposit_notes);
 
-    // Write the deposit info to the output
-    write_deposit_info_to_output(deposit);
-
-    return ();
+    // ? Write the deposit to the output
+    let (chain_id, identifier) = unsigned_div_rem(deposit.deposit_id, 2 ** 32);
+    if (chain_id == global_config.chain_ids[0]) {
+        write_deposit_info_to_output(deposit);
+        return ();
+    } else {
+        write_l2_deposit_info_to_output(deposit);
+        return ();
+    }
 }
